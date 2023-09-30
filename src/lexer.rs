@@ -192,6 +192,21 @@ impl Lexer {
                             }
                         }
                     },
+                    Some('*') => {
+                        self.advance();
+                        while let Some(c) = self.cur() {
+                            match c {
+                                '*' => {
+                                    self.advance();
+                                    if let Some('/') = self.cur() {
+                                        self.advance();
+                                        break;
+                                    }
+                                },
+                                _ => self.advance(),
+                            }
+                        }
+                    },
                     _ => self.push_simple(&mut tokens, TokenKind::Slash, 1),
                 },
                 '*' => self.push_simple(&mut tokens, TokenKind::Star, 1),

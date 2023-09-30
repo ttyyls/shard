@@ -54,22 +54,14 @@ pub enum TokenKind {
     Underscore,
 }
 
-// pub enum RegSize {
-//     ByteHigh,
-//     ByteLow,
-//     Word,
-//     DoubleWord,
-//     QuadWord,
-//     Arch,  // architecture dependent
-// }
-
-
-
 pub struct Token {
     pub kind: TokenKind,
     pub span: Span,
     pub text: String,
     pub flag: u8,
+    /*
+        1-3: Register size
+     */
 }
 
 impl Token {
@@ -100,6 +92,27 @@ impl Token {
             span,
             text,
             flag: 0,
+        }
+    }
+
+    pub fn register_size(&self) -> u8 {
+        self.flag & 0b0000_0111
+    }
+
+    pub fn newline_before(self) -> bool {
+        self.flag & 0b1000_0000 != 0
+    }
+
+    pub fn set_register_size(&mut self, size: u8) {
+        self.flag &= 0b1111_1000;
+        self.flag |= size & 0b0000_0111;
+    }
+
+    pub fn set_flag_bit(&mut self, bit: u8, val: bool) {
+        if val {
+            self.flag |= 1 << bit;
+        } else {
+            self.flag &= !(1 << bit);
         }
     }
 }

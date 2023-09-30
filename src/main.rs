@@ -2,12 +2,14 @@ mod args_parser;
 mod logger;
 mod utils;
 mod defs;
-mod parser;
-mod compiler;
+mod parser_old;
 mod location;
 mod token;
 mod lexer;
+mod ast;
+mod parser;
 
+mod compiler;
 use logger::{logger, DEBUG, OK, WARN, ERR, FATAL, at, At, WTF};
 use lexer::Lexer;
 use args_parser::ARGS;
@@ -23,7 +25,8 @@ fn main() {
     let main_file = utils::reader(unsafe{&ARGS.infile});
 
 
-    let token_stream = Lexer::new(main_file, unsafe{ARGS.infile}).lex();
+    let mut lexer = Lexer::new(main_file, unsafe{ARGS.infile});
+    let token_stream = lexer.lex();
     for token in &token_stream {
         log!(DEBUG, "{}", token);
     }
