@@ -30,6 +30,12 @@ impl std::fmt::Display for Span {
     }
 }
 
+impl std::fmt::Debug for Span {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        write!(f, "{}", self)
+    }
+}
+
 impl Span {
     pub fn new(file: &'static str, start: Location, end: Location) -> Span {
         Span(file, start, end)

@@ -1,6 +1,6 @@
 use crate::location::{Location, Span};
 use crate::token::{Token, TokenKind};
-
+use crate::logger::{Log, WARN, DEBUG, OK, ERR, FATAL};
 
 #[derive(Debug)]
 pub struct Lexer {
@@ -95,6 +95,7 @@ impl Lexer {
                             if let Some('0'..='9') = self.cur() {
                                 let mut text = String::new();
                                 self.lex_number(&mut text);
+                                let tmp = self.loc();
                                 let size: u8 = match self.cur() {
                                         Some(' ' | '\t' | '\r') | None => 0,
                                         Some('l') => 1,
@@ -103,8 +104,8 @@ impl Lexer {
                                         Some('d') => 4,
                                         Some('q') => 5,
                                         _ => {
-                                            // fixme: Error handling
-                                            panic!("Unexpected character: {}", self.cur().unwrap())
+                                            Log::new(ERR, self.span(tmp, self.loc()), format!("Unexpected character: {}", self.cur().unwrap()), "Expected register size").push();
+                                            0
                                         }
                                 };
                                 if size != 0 {
