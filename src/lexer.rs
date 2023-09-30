@@ -1,4 +1,4 @@
-use crate::location::{Location, Span};
+use crate::location::Location;
 use crate::token::{Token, TokenKind};
 
 

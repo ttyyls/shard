@@ -1,4 +1,4 @@
-use crate::location::Span;
+use crate::location::Location;
 
 #[allow(clippy::upper_case_acronyms)]
 #[derive(Debug)]
@@ -56,7 +56,7 @@ pub enum TokenKind {
 
 pub struct Token {
     pub kind: TokenKind,
-    pub span: Span,
+    pub location: Location,
     pub text: String,
     pub flag: u8,
     /*
@@ -65,31 +65,31 @@ pub struct Token {
 }
 
 impl Token {
-    pub fn new(kind: TokenKind, span: Span, text: String) -> Token {
+    pub fn new(kind: TokenKind, location: Location, text: String) -> Token {
         Token {
             kind,
-            span,
+            location,
             text,
             flag: 0,
         }
     }
 
-    pub fn new_simple(kind: TokenKind, span: Span) -> Token {
-        Token::new(kind, span, String::new())
+    pub fn new_simple(kind: TokenKind, location: Location) -> Token {
+        Token::new(kind, location, String::new())
     }
 
-    pub fn new_eof(span: Span) -> Token {
-        Token::new_simple(TokenKind::EOF, span)
+    pub fn new_eof(location: Location) -> Token {
+        Token::new_simple(TokenKind::EOF, location)
     }
 
-    pub fn from_string(span: Span, text: String) -> Token {
+    pub fn from_string(location: Location, text: String) -> Token {
         Token {
             kind: match text.as_ref() {
                 "ret" => TokenKind::Ret,
                 "jmp" => TokenKind::Jmp,
                 _ => TokenKind::Identifier,
             },
-            span,
+            location,
             text,
             flag: 0,
         }
