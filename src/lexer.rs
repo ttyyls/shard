@@ -1,9 +1,10 @@
-use crate::location::Location;
+use crate::location::{Location, Span};
 use crate::token::{Token, TokenKind};
 
 
 #[derive(Debug)]
 pub struct Lexer {
+    filename: &'static str,
     location: Location,
     input: String,
     current_index: usize,
@@ -12,10 +13,10 @@ pub struct Lexer {
 impl Lexer {
     pub fn new(input: String, filename: &'static str) -> Lexer {
         Lexer {
+            filename,
             location: Location {
                 line: 1,
                 column: 1,
-                filename,
             },
             input,
             current_index: 0,
@@ -43,6 +44,8 @@ impl Lexer {
 
     fn loc(&self) -> Location { self.location }
 
+    fn span(&self, start: Location, end: Location) -> Span { Span::new(self.filename, start, end) }
+
     fn push(&mut self, tokens: &mut Vec<Token>, token: Token) { tokens.push(token); }
 
     fn push_simple(&mut self, tokens: &mut Vec<Token>, kind: TokenKind, len: usize) {
@@ -51,7 +54,7 @@ impl Lexer {
         for _ in 0..len {
             self.advance();
         }
-        self.push(tokens, Token::new(kind, Span(start, self.loc()), text));
+        self.push(tokens, Token::new(kind, self.span(start, self.loc()), text));
     }
 
     pub fn lex(&mut self) -> Vec<Token> {
@@ -76,9 +79,9 @@ impl Lexer {
                         num.push('.');
                         self.advance();
                         self.lex_number(&mut num);
-                        self.push(&mut tokens, Token::new(TokenKind::FloatLiteral, Span(start, self.loc()), num));
+                        self.push(&mut tokens, Token::new(TokenKind::FloatLiteral, self.span(start, self.loc()), num));
                     } else {
-                        self.push(&mut tokens, Token::new(TokenKind::IntegerLiteral, Span(start, self.loc()), num));
+                        self.push(&mut tokens, Token::new(TokenKind::IntegerLiteral, self.span(start, self.loc()), num));
                     }
                 }
                 '`' | '"' => {
@@ -109,7 +112,7 @@ impl Lexer {
                                 }
                                 let token = Token {
                                     kind: TokenKind::Register,
-                                    span: Span(start, self.loc()),
+                                    span: self.span(start, self.loc()),
                                     text,
                                     flag: size,
                                 };
@@ -131,8 +134,8 @@ impl Lexer {
                                 }
                             }
                             match ident.as_ref() {
-                                "_" => self.push(&mut tokens, Token::new(TokenKind::Underscore, Span(start, self.loc()), ident)),
-                                _ => self.push(&mut tokens, Token::from_string(Span(start, self.loc()), ident)),
+                                "_" => self.push(&mut tokens, Token::new(TokenKind::Underscore, self.span(start, self.loc()), ident)),
+                                _ => self.push(&mut tokens, Token::from_string(self.span(start, self.loc()), ident)),
                             }
                         }
                     }
@@ -277,9 +280,9 @@ impl Lexer {
                     // fixme: Error handling
                     panic!("Char literal must be one character long")
                 }
-                Token::new(TokenKind::CharLiteral, Span(start, self.loc()), text)
+                Token::new(TokenKind::CharLiteral, self.span(start, self.loc()), text)
             },
-            '"' => Token::new(TokenKind::StringLiteral, Span(start, self.loc()), text),
+            '"' => Token::new(TokenKind::StringLiteral, self.span(start, self.loc()), text),
             _ => unreachable!(),
         }
     }
