@@ -1,6 +1,6 @@
 use crate::location::{Location, Span};
 use crate::token::{Token, TokenKind};
-use crate::logger::{Log, WARN, DEBUG, OK, ERR, FATAL};
+use crate::logger::{Log, ERR, FATAL};
 
 #[derive(Debug)]
 pub struct Lexer {
@@ -66,9 +66,15 @@ impl Lexer {
                 '\n' => {
                     if let Some(last_token) = tokens.last() {
                         match last_token.kind {
-                            TokenKind::Newline => self.advance(),
-                            _ => self.push_simple(&mut tokens, TokenKind::Newline, 1),
+                            TokenKind::Newline => {
+                                self.advance();
+                            },
+                            _ => {
+                                self.push_simple(&mut tokens, TokenKind::Newline, 1);
+                            },
                         }
+                    } else {
+                        self.push_simple(&mut tokens, TokenKind::Newline, 1);
                     }
                 },
                 '0'..='9' => {
@@ -84,14 +90,45 @@ impl Lexer {
                         self.push(&mut tokens, Token::new(TokenKind::IntegerLiteral, self.span(start, self.loc()), num));
                     }
                 }
-                '`' | '"' => {
+                '"' => {
                     let token = self.lex_quoted_literal();
                     self.push(&mut tokens, token)
                 },
+                '`' => {
+                    self.advance();
+                    let mut text = String::new();
+                    match self.cur() {
+                        Some('\\') => {
+                            self.advance();
+                            match self.cur() {
+                                Some('n') => text.push('\n'),
+                                Some('t') => text.push('\t'),
+                                Some('\\') => text.push('\\'),
+                                Some('`') => text.push('`'),
+                                _ => {}
+                            }
+                            self.advance();
+                        }
+                        Some(c) => {
+                            text.push(c);
+                            self.advance();
+                        }
+                        None => {
+                            Log::new(ERR, self.span(self.loc(), self.loc()), "Unterminated Char Literal", "Expected '`'").push();
+                        }
+                    };
+                    if let Some('`') = self.cur() {
+                        self.push(&mut tokens, Token::new(TokenKind::CharLiteral, self.span(start, self.loc()), text));
+                        self.advance();
+                    } else {
+                        Log::new(ERR, self.span(self.loc(), self.loc()), "Unterminated Char Literal", "Expected '`'").push();
+                    }
+                }
                 'a'..='z' | 'A'..='Z' | '_' => {
                     match c {
                         'r' => {
                             self.advance();
+                            let tmp = self.loc();
                             if let Some('0'..='9') = self.cur() {
                                 let mut text = String::new();
                                 self.lex_number(&mut text);
@@ -104,7 +141,7 @@ impl Lexer {
                                         Some('d') => 4,
                                         Some('q') => 5,
                                         _ => {
-                                            Log::new(ERR, self.span(tmp, self.loc()), format!("Unexpected character: {}", self.cur().unwrap()), "Expected register size").push();
+                                            Log::new(ERR, self.span(tmp, self.loc()), format!("Unexpected character: '{}'", self.cur().unwrap()), "Expected register size").push();
                                             0
                                         }
                                 };
@@ -119,8 +156,7 @@ impl Lexer {
                                 };
                                 self.push(&mut tokens, token);
                             } else {
-                                // fixme: Error handling
-                                panic!("Expected number after r")
+                                Log::new(ERR, self.span(tmp, self.loc()), format!("Unexpected character: '{}'", self.cur().unwrap()), "Expected register number").push();
                             }
                         }
                         _ => {
@@ -217,8 +253,12 @@ impl Lexer {
                 '~' => self.push_simple(&mut tokens, TokenKind::Tilde, 1),
 
                 _ => {
-                    // fixme: Error handling
-                    panic!("Unexpected character: {}", c)
+                    let level = match c.to_string().into_bytes().len() {
+                        1 => ERR,
+                        _ => FATAL,
+                    };
+                    Log::new(level, self.span(start, self.loc()), format!("Unexpected character: '{}'", c), "").push();
+                    self.advance();
                 },
             }
         }
@@ -239,7 +279,6 @@ impl Lexer {
     }
 
     fn lex_quoted_literal(&mut self) -> Token {
-        // todo: String literals
         let start = self.loc();
         let mut text = String::new();
         let quote = self.cur().unwrap();
@@ -247,8 +286,8 @@ impl Lexer {
         while let Some(c) = self.cur() {
             match c {
                 '\n' => {
-                    // fixme: Error handling
-                    panic!("Unterminated quoted literal")
+                    Log::new(ERR, self.span(start, self.loc()), "Unterminated String Literal", "Expected '\"'").push();
+                    break;
                 }
                 '\\' => {
                     self.advance();
@@ -259,8 +298,7 @@ impl Lexer {
                         Some('\'') => text.push('\''),
                         Some(quote) => text.push(quote),
                         _ => {
-                            // fixme: Error handling
-                            panic!("Unexpected character: {}", c)
+                            Log::new(ERR, self.span(start, self.loc()), format!("Unexpected character: '{}'", self.cur().unwrap()), "Expected '\"'").push();
                         }
                     }
                     self.advance();
@@ -275,16 +313,6 @@ impl Lexer {
                 }
             }
         }
-        match quote {
-            '`' => {
-                if text.len() != 1 {
-                    // fixme: Error handling
-                    panic!("Char literal must be one character long")
-                }
-                Token::new(TokenKind::CharLiteral, self.span(start, self.loc()), text)
-            },
-            '"' => Token::new(TokenKind::StringLiteral, self.span(start, self.loc()), text),
-            _ => unreachable!(),
-        }
+        Token::new(TokenKind::StringLiteral, self.span(start, self.loc()), text)
     }
 }

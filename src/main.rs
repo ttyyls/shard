@@ -26,7 +26,7 @@ fn main() {
 
 
     let token_stream = Lexer::new(main_file, unsafe{ARGS.infile}).lex();
-    Log::print_all_checked();  // Exits if errors are found
+    Log::print_all();  // Exits if errors are found
     for token in &token_stream {
         Log::new(DEBUG, None, "", format!("{}", token)).print();
     }
