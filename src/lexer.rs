@@ -146,7 +146,7 @@ impl Lexer {
                             let tmp = self.loc();
                             if let Some('0'..='9') = self.cur() {
                                 let mut text = String::new();
-                                self.lex_number(&mut text, Base::Decimal);
+                                self.lex_number(&mut text, Base::RDecimal);
                                 let tmp = self.loc();
                                 let size: u8 = match self.cur() {
                                         Some(' ' | '\t' | '\r') | None => 0,
@@ -163,12 +163,8 @@ impl Lexer {
                                 if size != 0 {
                                     self.advance();
                                 }
-                                let token = Token {
-                                    kind: TokenKind::Register,
-                                    span: self.span(start, self.loc()),
-                                    text,
-                                    flag: size,
-                                };
+                                let mut token = Token::new(TokenKind::Register, self.span(start, self.loc()), text);
+                                token.set_register_size(size);
                                 self.push(&mut tokens, token);
                             } else {
                                 Log::new(ERR, self.span(tmp, self.loc()), format!("Unexpected character: '{}'", self.cur().unwrap()), "Expected register number").push();
@@ -284,16 +280,15 @@ impl Lexer {
     fn lex_number(&mut self, num: &mut String, base: Base) {
         while let Some(c) = self.cur() {
             match (base, c) {
-                (Base::Decimal, '0'..='9')
+                (Base::Decimal | Base::RDecimal, '0'..='9')
                 | (Base::Binary, '0' | '1')
                 | (Base::Octal, '0'..='7')
                 | (Base::Hexadecimal, '0'..='9' | 'a'..='f') => {
                     num.push(c);
                     self.advance();
                 },
-                (_, '_') => {
-                    self.advance();
-                },
+                (_, '_') => self.advance(),
+                (Base::RDecimal, _) => break,
                 (_, '0'..='9' | 'a'..='f') => {
                     Log::new(ERR, self.span(self.loc(), self.loc()), format!("Unexpected character for base {}: '{}'", base, c), "").push();
                     break;
@@ -348,6 +343,7 @@ pub enum Base {
     Binary,      // 0b
     Octal,       // 0o
     Decimal,     // No prefix | 0d
+    RDecimal,    // Register Decimal  (ends on first non-decimal digit)
     Hexadecimal, // 0x
 }
 
@@ -357,27 +353,19 @@ impl std::fmt::Display for Base {
             Base::Binary => write!(f, "2"),
             Base::Octal => write!(f, "8"),
             Base::Decimal => write!(f, "10"),
+            Base::RDecimal => write!(f, "10"),
             Base::Hexadecimal => write!(f, "16"),
         }
     }
 }
 
 impl Base {
-    pub fn from_str(s: &str) -> Option<Base> {
-        match s {
-            "0b" => Some(Base::Binary),
-            "0o" => Some(Base::Octal),
-            "0d" => Some(Base::Decimal),
-            "0x" => Some(Base::Hexadecimal),
-            _ => None,
-        }
-    }
-
     pub fn into_token(self) -> TokenKind {
         match self {
             Base::Binary => TokenKind::BinLiteral,
             Base::Octal => TokenKind::OctLiteral,
             Base::Decimal => TokenKind::DecLiteral,
+            Base::RDecimal => TokenKind::DecLiteral,
             Base::Hexadecimal => TokenKind::HexLiteral,
         }
     }
