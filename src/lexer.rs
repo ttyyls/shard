@@ -77,21 +77,36 @@ impl Lexer {
                         self.push_simple(&mut tokens, TokenKind::Newline, 1);
                     }
                 },
+                '0' if self.peek().map_or(false, |c| "dbox".contains(c)) => {
+                    let base = match self.peek() {
+                        Some('d') => Base::Decimal,
+                        Some('b') => Base::Binary,
+                        Some('o') => Base::Octal,
+                        Some('x') => Base::Hexadecimal,
+                        _ => unreachable!(),
+                    };
+                    self.advance();
+                    self.advance();
+
+                    let mut num = String::new();
+                    self.lex_number(&mut num, base);
+                    self.push(&mut tokens, Token::new(Base::into_token(base), self.span(start, self.loc()), num))
+                }
                 '0'..='9' => {
                     let mut num = String::new();
-                    self.lex_number(&mut num);
+                    self.lex_number(&mut num, Base::Decimal);
 
                     if let Some('.') = self.cur() {
                         num.push('.');
                         self.advance();
-                        self.lex_number(&mut num);
+                        self.lex_number(&mut num, Base::Decimal);
                         self.push(&mut tokens, Token::new(TokenKind::FloatLiteral, self.span(start, self.loc()), num));
                     } else {
-                        self.push(&mut tokens, Token::new(TokenKind::IntegerLiteral, self.span(start, self.loc()), num));
+                        self.push(&mut tokens, Token::new(TokenKind::DecLiteral, self.span(start, self.loc()), num));
                     }
                 }
                 '"' => {
-                    let token = self.lex_quoted_literal();
+                    let token = self.lex_string_literal();
                     self.push(&mut tokens, token)
                 },
                 '`' => {
@@ -131,7 +146,7 @@ impl Lexer {
                             let tmp = self.loc();
                             if let Some('0'..='9') = self.cur() {
                                 let mut text = String::new();
-                                self.lex_number(&mut text);
+                                self.lex_number(&mut text, Base::Decimal);
                                 let tmp = self.loc();
                                 let size: u8 = match self.cur() {
                                         Some(' ' | '\t' | '\r') | None => 0,
@@ -266,19 +281,29 @@ impl Lexer {
         tokens
     }
 
-    fn lex_number(&mut self, num: &mut String) {
+    fn lex_number(&mut self, num: &mut String, base: Base) {
         while let Some(c) = self.cur() {
-            match c {
-                '0'..='9' => {
+            match (base, c) {
+                (Base::Decimal, '0'..='9')
+                | (Base::Binary, '0' | '1')
+                | (Base::Octal, '0'..='7')
+                | (Base::Hexadecimal, '0'..='9' | 'a'..='f') => {
                     num.push(c);
                     self.advance();
+                },
+                (_, '_') => {
+                    self.advance();
+                },
+                (_, '0'..='9' | 'a'..='f') => {
+                    Log::new(ERR, self.span(self.loc(), self.loc()), format!("Unexpected character for base {}: '{}'", base, c), "").push();
+                    break;
                 },
                 _ => break,
             }
         }
     }
 
-    fn lex_quoted_literal(&mut self) -> Token {
+    fn lex_string_literal(&mut self) -> Token {
         let start = self.loc();
         let mut text = String::new();
         let quote = self.cur().unwrap();
@@ -314,5 +339,46 @@ impl Lexer {
             }
         }
         Token::new(TokenKind::StringLiteral, self.span(start, self.loc()), text)
+    }
+}
+
+
+#[derive(Clone, Copy)]
+pub enum Base {
+    Binary,      // 0b
+    Octal,       // 0o
+    Decimal,     // No prefix | 0d
+    Hexadecimal, // 0x
+}
+
+impl std::fmt::Display for Base {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        match self {
+            Base::Binary => write!(f, "2"),
+            Base::Octal => write!(f, "8"),
+            Base::Decimal => write!(f, "10"),
+            Base::Hexadecimal => write!(f, "16"),
+        }
+    }
+}
+
+impl Base {
+    pub fn from_str(s: &str) -> Option<Base> {
+        match s {
+            "0b" => Some(Base::Binary),
+            "0o" => Some(Base::Octal),
+            "0d" => Some(Base::Decimal),
+            "0x" => Some(Base::Hexadecimal),
+            _ => None,
+        }
+    }
+
+    pub fn into_token(self) -> TokenKind {
+        match self {
+            Base::Binary => TokenKind::BinLiteral,
+            Base::Octal => TokenKind::OctLiteral,
+            Base::Decimal => TokenKind::DecLiteral,
+            Base::Hexadecimal => TokenKind::HexLiteral,
+        }
     }
 }
