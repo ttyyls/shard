@@ -62,7 +62,13 @@ impl Lexer {
         while let Some(c) = self.cur() {
             let start = self.loc();
             match c {
-                ' ' | '\t' | '\r' => self.advance(),
+                ' ' => {
+                    if let Some(last) = tokens.last_mut() {
+                        last.set_flag_bit(6, true);
+                    };
+                    self.advance();
+                }
+                '\t' | '\r' => self.advance(),
                 '\n' => {
                     if let Some(last_token) = tokens.last() {
                         match last_token.kind {

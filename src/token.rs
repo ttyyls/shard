@@ -62,6 +62,8 @@ pub struct Token {
     pub flag: u8,
     /*
         1-3: Register size
+        7: whitespace after
+        8: newline before
      */
 }
 
@@ -100,9 +102,7 @@ impl Token {
         self.flag & 0b0000_0111
     }
 
-    pub fn newline_before(self) -> bool {
-        self.flag & 0b1000_0000 != 0
-    }
+    pub fn whitespace_after(&self) -> bool { self.flag & 0b0100_0000 != 0 }
 
     pub fn set_register_size(&mut self, size: u8) {
         self.flag &= 0b1111_1000;
@@ -122,11 +122,14 @@ impl std::fmt::Display for Token {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:?}", self.kind)?;
         if !self.text.is_empty() {
-            if self.flag != 0 {
-                write!(f, "({:?}, f{})", self.text, self.flag)?;
-            } else {
-                write!(f, "({:?})", self.text)?;
+            let register_size = self.register_size();
+            let whitespace_after = self.whitespace_after();
+            write!(f, "({:?}", self.text)?;
+            if register_size != 0 {
+                write!(f, ", size={}", register_size)?;
             }
+            write!(f, ", ws={}", whitespace_after)?;
+            write!(f, ")")?;
         }
         Ok(())
     }
