@@ -1,10 +1,10 @@
-Type Ident = Box<str>;
-Type Body = Vec<Node>;
+type Ident = Box<str>;
+type Body = Vec<Node>;
 
-Type FileRoot = Vec<Node>;
+type FileRoot = Vec<Node>;
 
 pub enum Node {
-    Body(<Vec<Node>),
+    Body(Vec<Node>),
 
     Label(Option<Ident>, Vec<LabelAttr>, Option<Body>),
     MacroDef(Ident, Node), // /HELLO "hello, world"
@@ -12,7 +12,7 @@ pub enum Node {
 
     Jmp(Expr),
     Ret(Option<Expr>),
-    
+
     StackAssign(Ident, TypedOp, Expr),
     RegAssign(Ident, Reg, Expr),
 
@@ -21,26 +21,23 @@ pub enum Node {
     Struct(Ident, Vec<(Type, Ident)>),
 }
 
-
 /*
  * Expressions
  */
 pub enum Expr {
     Lit(Literal),
     Ident(Ident),
-    MacroInv(Ident),       // #HELLO
+    MacroInv(Ident), // #HELLO
 
     ExternCall(Ident, Vec<Expr>),
     FuncCall(Ident, Vec<Expr>), // !print "hello", "world"
     // Interrupt(),
-
     Unary(Expr, TypedOp),
     Binary(Expr, TypedOp, Expr),
-    
+
     IndexOf(Expr, Expr),
     FieldOf(Expr, Ident),
 }
-
 
 /*
  * Literals
@@ -56,7 +53,6 @@ pub enum Literal {
     Array(Vec<Expr>),
 }
 
-
 /*
  * Operators
  */
@@ -70,20 +66,19 @@ enum OpKind {
     LogOr,  // ||
     BitXor, // ^^
 
-    Add,    // +
-    Sub,    // -
-    Mul,    // *
-    Div,    // /
+    Add, // +
+    Sub, // -
+    Mul, // *
+    Div, // /
 
     RShift, // >>
     LShift, // <<
 
-    Eq,     // =
+    Eq, // =
 
-    Inc,    // ++
-    Dec,    // --
+    Inc, // ++
+    Dec, // --
 }
-
 
 /*
  * Label
@@ -103,16 +98,15 @@ pub enum LabelAttr {
     PtrType(Type),
 }
 
-
 /*
  * Types
  */
-Type Size = usize;
+type Size = usize;
 pub enum Type {
-    Size(Size),   // 8
+    Size(Size), // 8
 
-    Float(Size),  // f4
-    SInt(Size),   // s2
+    Float(Size), // f4
+    SInt(Size),  // s2
 
     Array(Type, usize), // s8:40
     Ptr(Type),          // [1]
@@ -123,31 +117,29 @@ pub enum Type {
     Reg(Reg),
 }
 
-struct Reg { // register
+struct Reg {
+    // register
     id: usize,
-    size: Size,  // q, d, l, s;  w -> S_ArchWord
+    size: Size, // q, d, l, s;  w -> S_ArchWord
 }
-
 
 /*
  * TAGS
  */
 enum Tag {
-    Name(Ident), // :name hello_world
-    Arch(Ident), // :arch x86_64 linux
+    Name(Ident),    // :name hello_world
+    Arch(Ident),    // :arch x86_64 linux
     Version(usize), // :version 0.4 -> 04
-    
-    NoSTD, // :nostd
+
+    NoSTD,      // :nostd
     Dep(Ident), // pulled from repos
     Use(Ident), // other shard files
     Lib(Ident), // extern libs?
-    
+
     Linker(),
     Assembler(),
     Sharc(),
-    
     // INTERNAL
-
 }
 
 // // build components
