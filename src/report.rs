@@ -3,7 +3,7 @@ use std::fmt::{Display, Formatter};
 use colored::{Color, Colorize};
 pub use progressh::LogHandler;
 
-use crate::scanner::Scanner;
+use crate::scanner::SCANNER;
 use crate::span::{self, HighlightKind, Span};
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -114,30 +114,28 @@ impl Report {
         self
     }
 
-    pub fn help<T: Display>(mut self, help: T) -> Self {
-        self.footers("HELP", help);
-        self
+    pub fn help<T: Display>(self, help: T) -> Self {
+        self.footer(format!("HELP: {help}"))
     }
 
-    pub fn info<T: Display>(mut self, info: T) -> Self {
-        self.footers("INFO", info);
-        self
+    pub fn info<T: Display>(self, info: T) -> Self {
+        self.footer(format!("INFO: {info}"))
     }
 
-    pub fn note<T: Display>(mut self, note: T) -> Self {
-        self.footers("NOTE", note);
-        self
+    pub fn note<T: Display>( self, note: T) -> Self {
+        self.footer(format!("NOTE: {note}"))
     }
 
     pub fn as_err<T>(mut self) -> Result<T> {
         Err(Box::new(self))
     }
 
-    fn footers<T: Display>(&mut self, prefix: &str, text: T) {
+    pub fn footer<T: Display>(mut self, text: T) -> Self {
         match self.footers {
-            Some(ref mut footers) => footers.push(format!("{prefix}: {text}")),
-            None => self.footers = Some(vec![format!("{prefix}: {text}")]),
+            Some(ref mut footers) => footers.push(text.to_string()),
+            None => self.footers = Some(vec![text.to_string()]),
         }
+        self
     }
 
     #[inline]
@@ -182,7 +180,7 @@ impl Display for Report {
                 "|".cyan().dimmed()
             );
 
-            let Some(line) = Scanner::get(self.span.as_ref().unwrap().filename)
+            let Some(line) = SCANNER.get(self.span.as_ref().unwrap().filename)
                 .lines()
                 .nth(self.span.as_ref().unwrap().line_number - 1)
             else {
