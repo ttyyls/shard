@@ -1,119 +1,53 @@
 #![allow(forbidden_lint_groups)]
-#![forbid(
-    clippy::complexity,
-    clippy::suspicious,
-    clippy::correctness,
-    clippy::cargo,
-    clippy::perf,
-    clippy::pedantic,
-    clippy::nursery
-)]
-#![allow(
-    clippy::style,
-    clippy::restriction,
-    clippy::match_bool,
-    clippy::too_many_lines,
-    clippy::single_match_else,
-    clippy::ignored_unit_patterns,
-    clippy::module_name_repetitions,
-    clippy::needless_for_each,
-    clippy::derive_partial_eq_without_eq,
-    clippy::missing_const_for_fn,
-    clippy::cognitive_complexity,
-    clippy::option_if_let_else,
-    clippy::option_map_unit_fn
-)]
+#![forbid(clippy::complexity,clippy::suspicious,clippy::correctness,clippy::cargo,
+	clippy::perf,clippy::pedantic,clippy::nursery)]
+#![allow(clippy::style,clippy::restriction,clippy::match_bool,clippy::too_many_lines,
+	clippy::single_match_else,clippy::ignored_unit_patterns, clippy::module_name_repetitions,
+	clippy::needless_for_each,clippy::derive_partial_eq_without_eq,clippy::missing_const_for_fn,
+	clippy::cognitive_complexity,clippy::option_if_let_else,clippy::option_map_unit_fn)]
 #![allow(dead_code, unused)]
+
+use std::sync::LazyLock;
 
 use colored::Colorize;
 
 use crate::lexer::Lexer;
-use crate::parser::Parser;
-use crate::report::{Level, LogHandler, Report, ReportKind};
-use crate::scanner::Scanner;
+use crate::report::{Level, LogHandler, Report, ReportKind, ERR_COUNT};
+use crate::fs::CACHE;
 
 mod args;
-mod ast;
 mod lexer;
-mod parser;
-// mod preprocessor;
 mod report;
-mod scanner;
+mod fs;
 mod span;
-mod token;
+
+static LOG_HANDLER: LazyLock<LogHandler> = LazyLock::new(LogHandler::new);
 
 fn main() {
-    let args = args::Args::parse(std::env::args().skip(1).collect());
+	let args = args::Args::parse(std::env::args().skip(1).collect());
 
-    if *args.debug {
-        println!("{args:#?}");
-    }
+	if *args.debug {
+		eprintln!("{args:#?}");
+	}
 
-    let handler = LogHandler::new();
+	let handler = LogHandler::new();
 
-    let tokens = {
-        let mut lexer = Lexer::new(*args.file, Scanner::get(*args.file), handler.clone());
-        lexer.lex_tokens();
-        lexer.tokens.move_to_front();
+	let tokens = {
+		let mut lexer = Lexer::new(*args.file, CACHE.get(*args.file), handler.clone());
+		lexer.lex_tokens();
+		lexer.tokens.move_to_front();
 
-        if *args.debug {
-            println!("\n{}", "LEXER".bold());
-            lexer.tokens.as_cursor().for_each(|token| println!("{token:#}"));
-        }
+		if *args.debug {
+			eprintln!("\n{}", "LEXER".bold());
+			lexer.tokens.as_cursor().for_each(|token| eprintln!("{token:#}"));
+		}
 
-        if handler.test_ge_log(Level::Warn as u8 as usize) {
-            std::process::exit(1);
-        }
+		if ERR_COUNT.fetch_add(0, std::sync::atomic::Ordering::Relaxed) > 0 {
+			std::process::exit(1);
+		}
 
-        lexer.tokens
-    };
+		lexer.tokens
+	};
 
-    // let (tokens, tags) = {
-    //     let mut preprocessor =
-    //         preprocessor::PreProcessor::new(*args.file, tokens, ReportSender::new(sender.clone()));
-    //
-    //     let (tokens, tags) = preprocessor.process();
-    //
-    //     if *args.debug {
-    //         println!("\n{}", "PREPROCESSOR".bold());
-    //         tokens.iter().for_each(|token| println!("{token:#}"));
-    //         println!();
-    //         tags.iter().for_each(|tag| println!("{tag:?}"));
-    //     }
-    //
-    //     if check_reports(&receiver, &mut reports) {
-    //         print_reports_and_exit(&mut reports, &args);
-    //     }
-    //
-    //     (tokens, tags)
-    // };
-
-    let program = {
-        let mut parser = Parser::new(&args.file, tokens, handler.clone());
-        let result = parser.parse();
-
-        if *args.debug {
-            println!("\n{}", "PARSER".bold());
-            result.stmts.iter().for_each(|stmt| println!("{stmt:#}"));
-        }
-
-        if handler.test_ge_log(Level::Warn as u8 as usize) {
-            std::process::exit(1);
-        }
-
-        result
-    };
-
-    println!("{:#?}", program.stmts[0]);
-    //
-    // let report = ReportKind::UnexpectedToken.untitled().span(program.stmts[0].span);
-    // let (priority, log) = report.into();
-
-    // program.stmts.iter().for_each(|stmt| {
-    //     let report = ReportKind::UnexpectedToken.untitled().span(stmt.span);
-    //     println!("{}", report);
-    // });
-    // handler.add_log(priority, log);
-
-    handler.terminate();
+	handler.terminate();
 }

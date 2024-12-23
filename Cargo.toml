@@ -13,12 +13,12 @@ categories = ["compiler", "development-tools"]
 colored = "2.1"   # needed for cross platform
 iterlist = "0.4"  # made by me so its fine
 
-progressh = { path = "progressh" }
+progress = { path = "progress" }
 
 
 [profile.release]
-lto = true
+lto = "fat"
 panic = "abort"
-opt-level = "z"
+opt-level = "s"
 debug = false
 codegen-units = 1

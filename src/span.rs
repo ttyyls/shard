@@ -3,125 +3,125 @@ use std::fmt::Formatter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Span {
-    pub filename: &'static str,
-    pub line_number: usize,
-    pub offset: usize,
-    pub length: usize,
+	pub filename: &'static str,
+	pub line_number: usize,
+	pub offset: usize,
+	pub length: usize,
 }
 
 impl Default for Span {
-    fn default() -> Self {
-        Self { filename: "", line_number: 1, offset: 0, length: 0 }
-    }
+	fn default() -> Self {
+		Self { filename: "", line_number: 1, offset: 0, length: 0 }
+	}
 }
 
 impl Span {
-    pub fn new(filename: &'static str, line_number: usize, offset: usize, length: usize) -> Self {
-        Self { filename, line_number, offset, length }
-    }
+	pub fn new(filename: &'static str, line_number: usize, offset: usize, length: usize) -> Self {
+		Self { filename, line_number, offset, length }
+	}
 
-    pub fn len(mut self, len: usize) -> Self {
-        self.length = len;
-        self
-    }
+	pub fn len(mut self, len: usize) -> Self {
+		self.length = len;
+		self
+	}
 
-    pub fn offset(mut self, offset: usize) -> Self {
-        self.offset = offset;
-        self
-    }
+	pub fn offset(mut self, offset: usize) -> Self {
+		self.offset = offset;
+		self
+	}
 
-    pub fn extend(mut self, other: &Self) -> Self {
-        assert!(self.filename == other.filename, "filenames don't match! {} != {}", self.filename, other.filename);
-        assert!(self.line_number == other.line_number, "line numbers don't match! {} != {}", self.line_number, other.line_number);
-        assert!(self.offset <= other.offset, "other.offset behind self.offset! {} > {}", other.offset, self.offset);
+	pub fn extend(mut self, other: &Self) -> Self {
+		assert!(self.filename == other.filename, "filenames don't match! {} != {}", self.filename, other.filename);
+		assert!(self.line_number == other.line_number, "line numbers don't match! {} != {}", self.line_number, other.line_number);
+		assert!(self.offset <= other.offset, "other.offset behind self.offset! {} > {}", other.offset, self.offset);
 
-        self.len(other.offset - self.offset + other.length)
-    }
+		self.len(other.offset - self.offset + other.length)
+	}
 
-    pub fn ghost<T: std::fmt::Display>(self, ghost: T) -> (Self, HighVec) {
-        let ghost = ghost.to_string();
-        assert!(self.length > 0);
-        assert_eq!(ghost.len(), self.length);
+	pub fn ghost<T: std::fmt::Display>(self, ghost: T) -> (Self, HighVec) {
+		let ghost = ghost.to_string();
+		assert!(self.length > 0);
+		assert_eq!(ghost.len(), self.length);
 
-        let mut vec = Vec::new();
-        (0..self.offset).for_each(|_| vec.push(HighlightKind::Empty));
-        ghost.chars().for_each(|c| vec.push(HighlightKind::Ghost(c)));
+		let mut vec = Vec::new();
+		(0..self.offset).for_each(|_| vec.push(HighlightKind::Empty));
+		ghost.chars().for_each(|c| vec.push(HighlightKind::Ghost(c)));
 
-        (self, vec)
-    }
+		(self, vec)
+	}
 }
 
 impl std::fmt::Display for Span {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        if self.length == 0 {
-            return write!(f, "{}:{}:{}", self.filename, self.line_number, self.offset);
-        }
+	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+		if self.length == 0 {
+			return write!(f, "{}:{}:{}", self.filename, self.line_number, self.offset);
+		}
 
-        write!(
-            f,
-            "{}:{}:{}-{}",
-            self.filename,
-            self.line_number,
-            self.offset,
-            self.offset + self.length - 1
-        )
-    }
+		write!(
+			f,
+			"{}:{}:{}-{}",
+			self.filename,
+			self.line_number,
+			self.offset,
+			self.offset + self.length - 1
+		)
+	}
 }
 
 type HighVec = Vec<HighlightKind>;
 
 impl From<Span> for (Span, HighVec) {
-    fn from(val: Span) -> (Span, HighVec) {
-        assert!(val.offset > 0, "displaying offset 0 would try to display the leading newline");
+	fn from(val: Span) -> (Span, HighVec) {
+		assert!(val.offset > 0, "displaying offset 0 would try to display the leading newline");
 
-        let mut vec = Vec::new();
+		let mut vec = Vec::new();
 
-        (0..val.offset-1).for_each(|_| vec.push(HighlightKind::Empty));
-        (0..val.length).for_each(|_| vec.push(HighlightKind::Caret));
+		(0..val.offset-1).for_each(|_| vec.push(HighlightKind::Empty));
+		(0..val.length).for_each(|_| vec.push(HighlightKind::Caret));
 
-        (val, vec)
-    }
+		(val, vec)
+	}
 }
 
 #[derive(Ord, PartialOrd, Eq, PartialEq, Clone, Copy, Debug)]
 #[repr(u8)]
 pub enum HighlightKind {
-    Ghost(char) = 2,
-    Caret = 1,
-    Empty = 0,
+	Ghost(char) = 2,
+	Caret = 1,
+	Empty = 0,
 }
 
 pub fn combine(vec_a: HighVec, vec_b: HighVec) -> HighVec {
-    let (mut a_iter, mut b_iter) = match vec_a.len().cmp(&vec_b.len()) {
-        Ordering::Less => (vec_b.into_iter().peekable(), vec_a.into_iter().peekable()),
-        _ => (vec_a.into_iter().peekable(), vec_b.into_iter().peekable()),
-    };
+	let (mut a_iter, mut b_iter) = match vec_a.len().cmp(&vec_b.len()) {
+		Ordering::Less => (vec_b.into_iter().peekable(), vec_a.into_iter().peekable()),
+		_ => (vec_a.into_iter().peekable(), vec_b.into_iter().peekable()),
+	};
 
-    let mut vec = Vec::new();
-    while let Some(a) = a_iter.next() {
-        let Some(b) = b_iter.next() else {
-            vec.push(a);
-            continue;
-        };
+	let mut vec = Vec::new();
+	while let Some(a) = a_iter.next() {
+		let Some(b) = b_iter.next() else {
+			vec.push(a);
+			continue;
+		};
 
-        if matches!(a, HighlightKind::Ghost(_)) {
-            vec.push(a);
-            while let Some(HighlightKind::Ghost(_)) = a_iter.peek() {
-                vec.push(a_iter.next().unwrap());
-            }
-            vec.push(b);
-        } else if matches!(b, HighlightKind::Ghost(_)) {
-            vec.push(b);
-            while let Some(HighlightKind::Ghost(_)) = b_iter.peek() {
-                vec.push(b_iter.next().unwrap());
-            }
-            vec.push(a);
-        } else if a < b {
-            vec.push(b);
-        } else {
-            vec.push(a);
-        }
-    }
+		if matches!(a, HighlightKind::Ghost(_)) {
+			vec.push(a);
+			while let Some(HighlightKind::Ghost(_)) = a_iter.peek() {
+				vec.push(a_iter.next().unwrap());
+			}
+			vec.push(b);
+		} else if matches!(b, HighlightKind::Ghost(_)) {
+			vec.push(b);
+			while let Some(HighlightKind::Ghost(_)) = b_iter.peek() {
+				vec.push(b_iter.next().unwrap());
+			}
+			vec.push(a);
+		} else if a < b {
+			vec.push(b);
+		} else {
+			vec.push(a);
+		}
+	}
 
-    vec
+	vec
 }
