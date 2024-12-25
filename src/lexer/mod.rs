@@ -1,33 +1,21 @@
 use std::fmt::Display;
 
 mod token;
-use token::{Token, TokenKind};
-
-use iterlist::IterList;
+pub use token::{Token, TokenKind};
 
 use crate::report::{LogHandler, Report, ReportKind};
 use crate::span::Span;
 
 pub struct Lexer<'source> {
 	contents: &'source str,
-	index: usize,
-	span: Span,
+	index:    usize,
+	span:     Span,
 
-	handler: LogHandler,
-	pub tokens: IterList<Token<'source>>,
+	handler:  LogHandler,
+	tokens:   Vec<Token<'source>>,
 }
 
 impl<'source> Lexer<'source> {
-	pub fn new(filename: &'static str, contents: &'source str, handler: LogHandler) -> Self {
-		Self {
-			contents,
-			handler,
-			index: 0,
-			span: Span::new(filename, 1, 0, 0),
-			tokens: IterList::new(),
-		}
-	}
-
 	#[inline]
 	fn report(&self, report: Report) {
 		self.handler.log(report);
@@ -46,7 +34,7 @@ impl<'source> Lexer<'source> {
 	}
 
 	fn push_token(&mut self, kind: TokenKind, span: Span, text: &'source str) {
-		self.tokens.push_next(Token { kind, span, text });
+		self.tokens.push(Token { kind, span, text });
 	}
 
 	fn push_token_simple(&mut self, kind: TokenKind, length: usize) {
@@ -66,50 +54,58 @@ impl<'source> Lexer<'source> {
 		}
 	}
 
-	pub fn lex_tokens(&mut self) {
-		'outer: while let Some(current) = self.current() {
-			let (index, span) = (self.index, self.span);
+	pub fn tokenize(filename: &'static str, contents: &'source str, handler: LogHandler) -> Vec<Token<'source>> {
+		let mut lex = Self {
+			contents,
+			handler,
+			index:  0,
+			span:   Span::new(filename, 1, 0, 0),
+			tokens: Vec::new(),
+		};
+
+		'outer: while let Some(current) = lex.current() {
+			let (index, span) = (lex.index, lex.span);
 
 			let (token, len) = match current {
 				"\n" => {
-					while Some("\n") == self.current() {
-						self.advance();
+					while Some("\n") == lex.current() {
+						lex.advance();
 					}
 
-					if self.tokens.get_cursor().is_some_and(|t| t.kind != TokenKind::NewLine) {
-						self.push_token(TokenKind::NewLine, self.span, "");
+					if lex.tokens.last().is_some_and(|t| t.kind != TokenKind::NewLine) {
+						lex.push_token(TokenKind::NewLine, lex.span, "");
 					}
 					continue;
 				},
 
 				c if c.chars().any(char::is_whitespace) => {
-					self.advance();
+					lex.advance();
 					continue;
 				},
 
-				"/" => match self.peek() {
+				"/" => match lex.peek() {
 					Some("/") => {
-						while Some("\n") != self.current() {
-							self.advance();
+						while Some("\n") != lex.current() {
+							lex.advance();
 						}
 						continue;
 					},
 					Some("*") => {
 						let mut depth = 0;
 						loop {
-							match self.current() {
-								Some("/") if Some("*") == self.peek() => {
-									self.advance();
-									self.advance();
+							match lex.current() {
+								Some("/") if Some("*") == lex.peek() => {
+									lex.advance();
+									lex.advance();
 									depth += 1;
 								},
-								Some("*") if Some("/") == self.peek() => {
-									self.advance();
-									self.advance();
+								Some("*") if Some("/") == lex.peek() => {
+									lex.advance();
+									lex.advance();
 									depth -= 1;
 								},
 								None => break,
-								_ => self.advance(),
+								_ => lex.advance(),
 							}
 
 							if depth == 0 {
@@ -118,10 +114,10 @@ impl<'source> Lexer<'source> {
 						}
 
 						if depth > 0 {
-							self.report(
+							lex.report(
 								ReportKind::UnterminatedMultilineComment
 									.title(format!("{depth} comments never terminated"))
-									.span(self.span),
+									.span(lex.span),
 							);
 						}
 
@@ -131,15 +127,15 @@ impl<'source> Lexer<'source> {
 				},
 
 				c if c.chars().any(|c| c.is_ascii_alphabetic()) => {
-					while let Some(c) = self.current() {
+					while let Some(c) = lex.current() {
 						if c.chars().any(|c| c.is_ascii_alphanumeric() || c == '_') {
-							self.advance();
+							lex.advance();
 							continue;
 						}
 						break;
 					}
 
-					let ident = self.slice_source(index, self.index - index);
+					let ident = lex.slice_source(index, lex.index - index);
 					let kind = match ident {
 						"ret" => TokenKind::KeywordRet,
 						"struct" => TokenKind::KeywordStruct,
@@ -152,167 +148,167 @@ impl<'source> Lexer<'source> {
 						_ => TokenKind::Identifier,
 					};
 
-					self.push_token(kind, span.len(self.index - index), ident);
+					lex.push_token(kind, span.len(lex.index - index), ident);
 					continue;
 				},
 
 				"\"" => {
-					self.advance();
-					let span = self.span;
-					while let Some(c) = self.current() {
+					lex.advance();
+					let span = lex.span;
+					while let Some(c) = lex.current() {
 						match c {
 							"\"" => break,
 							"\\" => {
-								self.advance();
-								if self.current() == Some("\"") {
-									self.advance();
+								lex.advance();
+								if lex.current() == Some("\"") {
+									lex.advance();
 								}
 							},
 							"\n" => {
-								self.report(
+								lex.report(
 									ReportKind::UnterminatedStringLiteral
 										.untitled()
-										.span(span.offset(span.offset - 2).len(self.index - index)),
+										.span(span.offset(span.offset - 2).len(lex.index - index)),
 								);
 								continue 'outer;
 							},
-							_ => self.advance(),
+							_ => lex.advance(),
 						}
 					}
-					let span = span.len(self.index - (index + 1));
-					self.push_token(
+					let span = span.len(lex.index - (index + 1));
+					lex.push_token(
 						TokenKind::StringLiteral,
 						span,
-						self.slice_source(index + 1, self.index - (index + 1)),
+						lex.slice_source(index + 1, lex.index - (index + 1)),
 					);
 
-					self.advance();
+					lex.advance();
 
 					continue;
 				},
 
 				"`" => {
-					self.advance();
-					let start = self.index;
-					while let Some(c) = self.current() {
+					lex.advance();
+					let start = lex.index;
+					while let Some(c) = lex.current() {
 						match c {
 							"`" => {
-								if self.index == start {
-									self.report(
+								if lex.index == start {
+									lex.report(
 										ReportKind::EmptyCharLiteral
 											.untitled()
 											.span(span.len(2).offset(span.offset - 1)),
 									);
-									self.advance();
+									lex.advance();
 									continue 'outer;
 								}
 
-								self.advance();
+								lex.advance();
 								break;
 							},
 
 							"\\" => {
-								self.advance();
-								if self.current() == Some("`") && self.peek() != Some("`") {
-									self.advance();
-									self.report(
+								lex.advance();
+								if lex.current() == Some("`") && lex.peek() != Some("`") {
+									lex.advance();
+									lex.report(
 										ReportKind::UnterminatedCharLiteral
 											.untitled()
-											.span(span.len(self.index - index))
+											.span(span.len(lex.index - index))
 											.help("Remove the escape character"),
 									);
 									continue 'outer;
 								}
 
-								self.advance();
+								lex.advance();
 							},
 
 							"\n" => {
-								self.report(
+								lex.report(
 									ReportKind::UnterminatedCharLiteral
 										.untitled()
-										.span(span.len(self.index - index).offset(span.offset - 1)),
+										.span(span.len(lex.index - index).offset(span.offset - 1)),
 								);
 								continue 'outer;
 							},
 
-							_ => self.advance(),
+							_ => lex.advance(),
 						}
 					}
 
-					self.push_token(
+					lex.push_token(
 						TokenKind::CharLiteral,
-						span.len(self.index - index),
-						self.slice_source(index, self.index - index),
+						span.len(lex.index - index),
+						lex.slice_source(index, lex.index - index),
 					);
 
 					continue;
 				},
 
-				"0" if self.peek().filter(|c| "box".contains(c)).is_some() => {
-					let (kind, base) = match self.peek() {
+				"0" if lex.peek().filter(|c| "box".contains(c)).is_some() => {
+					let (kind, base) = match lex.peek() {
 						Some("b") => (TokenKind::BinaryIntLiteral, 2),
 						Some("o") => (TokenKind::OctalIntLiteral, 8),
 						Some("x") => (TokenKind::HexadecimalIntLiteral, 16),
 						_ => unreachable!(),
 					};
 
-					self.advance();
-					self.advance();
-					if !self.lex_integer(base) {
+					lex.advance();
+					lex.advance();
+					if !lex.lex_integer(base) {
 						continue;
 					}
 
-					self.push_token(
+					lex.push_token(
 						kind,
-						self.span.len(self.index - index),
-						self.slice_source(index, self.index - index),
+						lex.span.len(lex.index - index),
+						lex.slice_source(index, lex.index - index),
 					);
 
 					continue;
 				},
 
 				c if c.chars().any(|c| c.is_ascii_digit()) => {
-					if !self.lex_integer(10) {
+					if !lex.lex_integer(10) {
 						continue;
 					}
 
-					if self.current() == Some(".") {
-						self.advance();
-						if !self.lex_integer(10) {
+					if lex.current() == Some(".") {
+						lex.advance();
+						if !lex.lex_integer(10) {
 							continue;
 						}
 
-						if self.current() == Some(".") {
-							self.report(
+						if lex.current() == Some(".") {
+							lex.report(
 								ReportKind::SyntaxError
 									.title("Invalid Float Literal")
-									.span(self.span.len(1)),
+									.span(lex.span.len(1)),
 							);
-							self.advance();
+							lex.advance();
 							continue;
 						}
 
-						self.push_token(
+						lex.push_token(
 							TokenKind::FloatLiteral,
-							span.len(self.index - index),
-							self.slice_source(index, self.index - index),
+							span.len(lex.index - index),
+							lex.slice_source(index, lex.index - index),
 						);
 
 						continue;
 					}
 
-					self.push_token(
+					lex.push_token(
 						TokenKind::DecimalIntLiteral,
-						span.len(self.index - index),
-						self.slice_source(index, self.index - index),
+						span.len(lex.index - index),
+						lex.slice_source(index, lex.index - index),
 					);
 					continue;
 				},
 
 				"." => (TokenKind::Dot, 1),
 				"'" => (TokenKind::Apostrophe, 1),
-				"~" => match self.peek() {
+				"~" => match lex.peek() {
 					Some("=") => (TokenKind::NotEquals, 2),
 					_ => (TokenKind::Tilde, 1),
 				},
@@ -321,24 +317,24 @@ impl<'source> Lexer<'source> {
 				"#" => (TokenKind::Pound, 1),
 				"$" => (TokenKind::Dollar, 1),
 				"%" => (TokenKind::Percent, 1),
-				"^" => match self.peek() {
+				"^" => match lex.peek() {
 					Some("^") => (TokenKind::CaretCaret, 2),
 					_ => (TokenKind::Caret, 1),
 				},
-				"&" => match self.peek() {
+				"&" => match lex.peek() {
 					Some("&") => (TokenKind::AmpersandAmpersand, 2),
 					_ => (TokenKind::Ampersand, 1),
 				},
 				"*" => (TokenKind::Star, 1),
 				"(" => (TokenKind::LParen, 1),
 				")" => (TokenKind::RParen, 1),
-				"-" => match self.peek() {
+				"-" => match lex.peek() {
 					Some(">") => (TokenKind::ArrowRight, 2),
 					Some("-") => (TokenKind::MinusMinus, 2),
 					_ => (TokenKind::Minus, 1),
 				},
 				"_" => (TokenKind::Underscore, 1),
-				"+" => match self.peek() {
+				"+" => match lex.peek() {
 					Some("+") => (TokenKind::PlusPlus, 2),
 					_ => (TokenKind::Plus, 1),
 				},
@@ -346,25 +342,25 @@ impl<'source> Lexer<'source> {
 				"]" => (TokenKind::RBracket, 1),
 				"{" => (TokenKind::LBrace, 1),
 				"}" => (TokenKind::RBrace, 1),
-				"|" => match self.peek() {
+				"|" => match lex.peek() {
 					Some("|") => (TokenKind::PipePipe, 2),
 					_ => (TokenKind::Pipe, 1),
 				},
 				";" => (TokenKind::Semicolon, 1),
 				":" => (TokenKind::Colon, 1),
 				"," => (TokenKind::Comma, 1),
-				"=" => match self.peek() {
+				"=" => match lex.peek() {
 					// Some("=") => (TokenKind::EqualsEquals, 2),
 					Some(">") => (TokenKind::FatArrowRight, 2),
 					_ => (TokenKind::Equals, 1),
 				},
-				"<" => match self.peek() {
+				"<" => match lex.peek() {
 					Some("=") => (TokenKind::LessThanEquals, 2),
 					Some("-") => (TokenKind::ArrowLeft, 2),
 					Some("<") => (TokenKind::ShiftLeft, 2),
 					_ => (TokenKind::LessThan, 1),
 				},
-				">" => match self.peek() {
+				">" => match lex.peek() {
 					Some("=") => (TokenKind::GreaterThanEquals, 2),
 					Some(">") => (TokenKind::ShiftRight, 2),
 					_ => (TokenKind::GreaterThan, 1),
@@ -372,15 +368,15 @@ impl<'source> Lexer<'source> {
 				"?" => (TokenKind::Question, 1),
 
 				c => {
-					self.report(ReportKind::UnexpectedCharacter.title(c).span(self.span));
-					self.advance();
+					lex.report(ReportKind::UnexpectedCharacter.title(c).span(lex.span));
+					lex.advance();
 					continue;
 				},
 			};
-			self.push_token_simple(token, len);
+			lex.push_token_simple(token, len);
 		}
 
-		self.push_token(TokenKind::EOF, self.span, "");
+		lex.tokens
 	}
 
 	fn lex_integer(&mut self, base: usize) -> bool {

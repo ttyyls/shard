@@ -4,10 +4,12 @@
 #![allow(clippy::style,clippy::restriction,clippy::match_bool,clippy::too_many_lines,
 	clippy::single_match_else,clippy::ignored_unit_patterns, clippy::module_name_repetitions,
 	clippy::needless_for_each,clippy::derive_partial_eq_without_eq,clippy::missing_const_for_fn,
-	clippy::cognitive_complexity,clippy::option_if_let_else,clippy::option_map_unit_fn)]
+	clippy::cognitive_complexity,clippy::option_if_let_else,clippy::option_map_unit_fn,
+	clippy::similar_names)]
 #![allow(dead_code, unused)]
 
 use std::sync::LazyLock;
+use std::sync::atomic::Ordering;
 
 use colored::Colorize;
 
@@ -32,22 +34,18 @@ fn main() {
 
 	let handler = LogHandler::new();
 
-	let tokens = {
-		let mut lexer = Lexer::new(*args.file, CACHE.get(*args.file), handler.clone());
-		lexer.lex_tokens();
-		lexer.tokens.move_to_front();
 
-		if *args.debug {
-			eprintln!("\n{}", "LEXER".bold());
-			lexer.tokens.as_cursor().for_each(|token| eprintln!("{token:#}"));
-		}
+	let tokens = Lexer::tokenize(*args.file, CACHE.get(*args.file), handler.clone());
 
-		if ERR_COUNT.fetch_add(0, std::sync::atomic::Ordering::Relaxed) > 0 {
-			std::process::exit(1);
-		}
+	if *args.debug {
+		eprintln!("\n{}", "LEXER".bold());
+		tokens.iter().for_each(|token| eprintln!("{token:#}"));
+	}
 
-		lexer.tokens
-	};
+	if ERR_COUNT.fetch_add(0, Ordering::Relaxed) > 0 {
+		std::process::exit(1);
+	}
+
 
 	handler.terminate();
 }

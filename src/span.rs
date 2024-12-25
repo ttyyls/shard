@@ -3,10 +3,12 @@ use std::fmt::Formatter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Span {
-	pub filename: &'static str,
+	pub filename:    &'static str,
 	pub line_number: usize,
-	pub offset: usize,
-	pub length: usize,
+	// pub column:      usize, // TODO: move offset to column, make 
+	// offset absolute byte offset so we can construct slices from this
+	pub offset:      usize,
+	pub length:      usize,
 }
 
 impl Default for Span {
