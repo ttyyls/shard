@@ -2,11 +2,9 @@ use std::borrow::Borrow;
 use std::fmt::{Debug, Formatter};
 use std::process::exit;
 
-use crate::report::{Level, ReportKind};
-
 macro_rules! error {
 	($($ident:tt)*) => {{
-		ReportKind::ArgumentParserError
+		crate::report::ReportKind::ArgumentParserError
 			.title(format!($($ident)*))
 			.note("(Run with \x1b[1m--help\x1b[0m for usage information)");
 		exit(1);
@@ -43,12 +41,12 @@ impl<T: Debug> Debug for Arg<T> {
 }
 
 #[derive(Debug)]
-pub struct Args {
+pub struct Args { // TODO: clean this shit up and throw out most unused
 	pub file:         Arg<&'static str>,
 	pub output:       Arg<&'static str>,
 	pub debug:        Arg<bool>,
 	pub code_context: Arg<bool>,
-	pub level:        Arg<Level>,
+	pub level:        Arg<u8>,
 	pub verbs:        Vec<&'static str>,
 }
 
@@ -59,7 +57,7 @@ impl Args {
 			output:       Arg::new("main.asm"),
 			debug:        Arg::new(false),
 			code_context: Arg::new(true),
-			level:        Arg::new(Level::Warn),
+			level:        Arg::new(2),
 			verbs:        Vec::new(),
 		}
 	}
@@ -110,12 +108,12 @@ impl Args {
 					err_if_arg_end!();
 					let level = arguments.next().unwrap_or_else(|| error!("expected level"));
 
-					self.level.try_mut(arg, match level.as_str() {
-						"f" | "fatal"  => Level::Fatal,
-						"e" | "error"  => Level::Error,
-						"w" | "warn"   => Level::Warn,
-						"n" | "note"   => Level::Note,
-						"s" | "silent" => Level::Silent,
+					self.level.try_mut(arg, match level.chars().nth(0).unwrap() {
+						'f' => 4,
+						'e' => 3,
+						'w' => 2,
+						'n' => 1,
+						's' => 0,
 						_ => error!("invalid level `{level}`"),
 					});
 				},
@@ -171,6 +169,7 @@ const HELP_MESSAGE: &str = "\x1b[1mDESCRIPTION\x1b[0m
         (default: main.asm)
 
         --no-context            Disable code context";
+
 const SHARK_ASCII: &str = r#"                                 ,-
                                ,'::|
                               /::::|

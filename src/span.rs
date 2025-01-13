@@ -3,7 +3,7 @@ use std::fmt::Formatter;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Span {
-	pub filename:    &'static str,
+	pub filename:    &'static str, // TODO: this can be provided externally, saves 8 bytes/span
 	pub line_number: usize,
 	// pub column:      usize, // TODO: move offset to column, make 
 	// offset absolute byte offset so we can construct slices from this
@@ -93,7 +93,7 @@ pub enum HighlightKind {
 	Empty = 0,
 }
 
-pub fn combine(vec_a: HighVec, vec_b: HighVec) -> HighVec {
+pub fn combine(vec_a: HighVec, vec_b: HighVec) -> HighVec { // TODO: clean this up
 	let (mut a_iter, mut b_iter) = match vec_a.len().cmp(&vec_b.len()) {
 		Ordering::Less => (vec_b.into_iter().peekable(), vec_a.into_iter().peekable()),
 		_ => (vec_a.into_iter().peekable(), vec_b.into_iter().peekable()),

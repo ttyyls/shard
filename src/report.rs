@@ -9,16 +9,6 @@ use crate::span::{self, HighlightKind, Span};
 
 pub static ERR_COUNT: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Debug, Copy, Clone, PartialEq, PartialOrd)]
-#[repr(u8)]
-pub enum Level {
-	Fatal,
-	Error,
-	Warn,
-	Note,
-	Silent,
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, PartialOrd)]
 pub enum ReportKind {
 	_NOTE_,
@@ -33,18 +23,10 @@ pub enum ReportKind {
 	UnterminatedCharLiteral,
 	EmptyCharLiteral,
 
-	// Preprocessor
-	UndefinedMacro,
-	InvalidTag,
-	ExceededRecursionLimit,
-	SelfReferentialMacro,
-
 	// Parser
 	UnexpectedToken,
 	UnexpectedEOF,
 	InvalidEscapeSequence,
-	DuplicateAttribute,
-	RegisterWithinHeap,
 	MismatchedDelimeter,
 
 	// General
@@ -52,18 +34,6 @@ pub enum ReportKind {
 	SyntaxError,
 
 	_FATAL_,
-}
-
-impl From<ReportKind> for Level {
-	fn from(kind: ReportKind) -> Self {
-		match () {
-			_ if kind > ReportKind::_FATAL_   => Self::Fatal,
-			_ if kind > ReportKind::_ERROR_   => Self::Error,
-			_ if kind > ReportKind::_WARNING_ => Self::Warn,
-			_ if kind > ReportKind::_NOTE_    => Self::Note,
-			_ => Self::Silent,
-		}
-	}
 }
 
 impl ReportKind {
@@ -79,6 +49,7 @@ impl ReportKind {
 	}
 
 	pub fn title<T: Display>(self, title: T) -> Report {
+		#[cfg(debug_assertions)]
 		assert!(!title.to_string().is_empty(), "use ReportKind::untitled() instead.");
 		Report {
 			kind:      self,
@@ -140,11 +111,6 @@ impl Report {
 		}
 		self
 	}
-
-	#[inline]
-	pub fn level(&self) -> Level {
-		self.kind.into()
-	}
 }
 
 impl<T> From<Report> for Result<T> {
@@ -158,16 +124,16 @@ impl Display for Report {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		assert!(self.span.is_some() || self.label.is_none());
 
-		if self.level() >= Level::Error {
+		if self.kind >= ReportKind::_ERROR_ {
 			ERR_COUNT.fetch_add(1, Ordering::Relaxed);
 		}
 
-		let (prefix, primary, secondary) = match self.level() {
-			Level::Fatal  => ("Fatal", Color::Red, Color::BrightRed),
-			Level::Error  => ("Error", Color::Red, Color::BrightRed),
-			Level::Warn   => ("Warning", Color::Yellow, Color::BrightYellow),
-			Level::Note   => ("Note", Color::White, Color::White),
-			Level::Silent => unreachable!("Why does a report have the level of silent you idiot."),
+		let (prefix, primary, secondary) = match self.kind {
+			k if k > ReportKind::_FATAL_   => ("FATAL", Color::Red,    Color::BrightRed),
+			k if k > ReportKind::_ERROR_   => ("ERR",   Color::Red,    Color::BrightRed),
+			k if k > ReportKind::_WARNING_ => ("WARN",  Color::Yellow, Color::BrightYellow),
+			k if k > ReportKind::_NOTE_    => ("NOTE",  Color::White,  Color::White),
+			_ => unreachable!(),
 		};
 
 		writeln!(f,
@@ -249,12 +215,6 @@ impl Display for Report {
 impl std::fmt::Debug for Report {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
 		write!(f, "{:?}", self.kind)
-	}
-}
-
-impl Into<(usize, String)> for Report {
-	fn into(self) -> (usize, String) {
-		(self.level() as usize, self.to_string())
 	}
 }
 
