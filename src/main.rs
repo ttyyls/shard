@@ -10,7 +10,6 @@
 
 use std::sync::OnceLock;
 use std::sync::atomic::Ordering;
-use std::mem::{self, MaybeUninit};
 
 use colored::Colorize;
 
@@ -24,17 +23,17 @@ mod fs;
 mod span;
 
 fn main() {
-	let args = args::Args::parse(std::env::args().skip(1).collect());
+	let args = args::Args::parse(std::env::args().skip(1));
 
-	if *args.debug {
+	if args.debug {
 		eprintln!("{args:#?}");
 	}
 
 	let handler = LogHandler::new();
 
-	let tokens = lexer::Lexer::tokenize(*args.file, fs::CACHE.get(*args.file), handler.clone());
+	let tokens = lexer::Lexer::tokenize(args.file, fs::CACHE.get(args.file), handler.clone());
 
-	if *args.debug {
+	if args.debug {
 		eprintln!("\n{}", "LEXER".bold());
 		tokens.iter().for_each(|token| eprintln!("{token:#}"));
 	}
@@ -44,7 +43,7 @@ fn main() {
 	}
 
 
-	let ast = parser::Parser::parse(tokens, *args.file, &handler);
+	let ast = parser::Parser::parse(tokens, args.file, &handler);
 
 	handler.terminate();
 }
