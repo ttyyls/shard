@@ -16,11 +16,6 @@ pub struct Lexer<'source> {
 }
 
 impl<'source> Lexer<'source> {
-	#[inline]
-	fn report(&self, report: Report) {
-		self.handler.log(report);
-	}
-
 	fn current(&self) -> Option<&'source str> {
 		self.contents.get(self.index..=self.index)
 	}
@@ -67,17 +62,6 @@ impl<'source> Lexer<'source> {
 			let (index, span) = (lex.index, lex.span);
 
 			let (token, len) = match current {
-				"\n" => {
-					while Some("\n") == lex.current() {
-						lex.advance();
-					}
-
-					if lex.tokens.last().is_some_and(|t| t.kind != TokenKind::NewLine) {
-						lex.push_token(TokenKind::NewLine, lex.span, "");
-					}
-					continue;
-				},
-
 				c if c.chars().any(char::is_whitespace) => {
 					lex.advance();
 					continue;
@@ -114,7 +98,7 @@ impl<'source> Lexer<'source> {
 						}
 
 						if depth > 0 {
-							lex.report(
+							lex.handler.log(
 								ReportKind::UnterminatedMultilineComment
 									.title(format!("{depth} comments never terminated"))
 									.span(lex.span),
@@ -137,14 +121,16 @@ impl<'source> Lexer<'source> {
 
 					let ident = lex.slice_source(index, lex.index - index);
 					let kind = match ident {
-						"ret" => TokenKind::KeywordRet,
-						"struct" => TokenKind::KeywordStruct,
-						"enum" => TokenKind::KeywordEnum,
-						"destr" => TokenKind::KeywordDestr,
-						"type" => TokenKind::KeywordType,
-						"op" => TokenKind::KeywordOp,
-						"cast" => TokenKind::KeywordCast,
-						"extern" => TokenKind::KeywordExtern,
+						"fn"     => TokenKind::KWFn,
+						"export" => TokenKind::KWExport,
+						"ret"    => TokenKind::KWRet,
+						"struct" => TokenKind::KWStruct,
+						"enum"   => TokenKind::KWEnum,
+						//"destr"  => TokenKind::KWDestr,
+						"type"   => TokenKind::KWType,
+						//"op"     => TokenKind::KWOp,
+						//"cast"   => TokenKind::KWCast,
+						"extern" => TokenKind::KWExtern,
 						_ => TokenKind::Identifier,
 					};
 
@@ -165,7 +151,7 @@ impl<'source> Lexer<'source> {
 								}
 							},
 							"\n" => {
-								lex.report(
+								lex.handler.log(
 									ReportKind::UnterminatedStringLiteral
 										.untitled()
 										.span(span.offset(span.offset - 2).len(lex.index - index)),
@@ -194,7 +180,7 @@ impl<'source> Lexer<'source> {
 						match c {
 							"`" => {
 								if lex.index == start {
-									lex.report(
+									lex.handler.log(
 										ReportKind::EmptyCharLiteral
 											.untitled()
 											.span(span.len(2).offset(span.offset - 1)),
@@ -211,7 +197,7 @@ impl<'source> Lexer<'source> {
 								lex.advance();
 								if lex.current() == Some("`") && lex.peek() != Some("`") {
 									lex.advance();
-									lex.report(
+									lex.handler.log(
 										ReportKind::UnterminatedCharLiteral
 											.untitled()
 											.span(span.len(lex.index - index))
@@ -224,7 +210,7 @@ impl<'source> Lexer<'source> {
 							},
 
 							"\n" => {
-								lex.report(
+								lex.handler.log(
 									ReportKind::UnterminatedCharLiteral
 										.untitled()
 										.span(span.len(lex.index - index).offset(span.offset - 1)),
@@ -280,7 +266,7 @@ impl<'source> Lexer<'source> {
 						}
 
 						if lex.current() == Some(".") {
-							lex.report(
+							lex.handler.log(
 								ReportKind::SyntaxError
 									.title("Invalid Float Literal")
 									.span(lex.span.len(1)),
@@ -368,7 +354,7 @@ impl<'source> Lexer<'source> {
 				"?" => (TokenKind::Question, 1),
 
 				c => {
-					lex.report(ReportKind::UnexpectedCharacter.title(c).span(lex.span));
+					lex.handler.log(ReportKind::UnexpectedCharacter.title(c).span(lex.span));
 					lex.advance();
 					continue;
 				},
@@ -392,7 +378,7 @@ impl<'source> Lexer<'source> {
 				(_, '_') => self.advance(),
 
 				(_, c) if c.is_ascii_alphanumeric() => {
-					self.report(
+					self.handler.log(
 						ReportKind::SyntaxError
 							.title("Invalid Integer Literal")
 							.span(self.span.len(1).offset(self.span.offset - 1))

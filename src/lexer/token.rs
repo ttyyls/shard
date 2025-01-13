@@ -6,17 +6,18 @@ use crate::span::Span;
 
 #[derive(Debug, PartialOrd, PartialEq, Clone, Copy)]
 pub enum TokenKind {
-	NewLine,
 	Identifier,
 
-	KeywordRet,
-	KeywordStruct,
-	KeywordEnum,
-	KeywordDestr,
-	KeywordType,
-	KeywordOp,
-	KeywordCast,
-	KeywordExtern,
+	KWFn,
+	KWExport,
+	KWRet,
+	KWStruct,
+	KWEnum,
+	//KWDestr,
+	KWType,
+	KWOp,
+	KWCast,
+	KWExtern,
 
 	FloatLiteral,
 
