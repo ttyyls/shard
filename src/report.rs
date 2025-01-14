@@ -26,8 +26,7 @@ pub enum ReportKind {
 	// Parser
 	UnexpectedToken,
 	UnexpectedEOF,
-	InvalidEscapeSequence,
-	MismatchedDelimeter,
+	InvalidNumber,
 
 	// General
 	IOError,
@@ -143,7 +142,7 @@ impl Display for Report {
 		)?;
 
 		let mut padding = String::new();
-		if let Some(ref span) = &self.span {
+		if let Some(span) = &self.span {
 			writeln!(f, " {} {}", "--->".cyan(), self.span.as_ref().unwrap())?;
 
 			padding = format!(

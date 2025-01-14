@@ -1,5 +1,4 @@
-use std::borrow::Borrow;
-use std::fmt::{Debug, Formatter};
+use std::fmt::Debug;
 use std::process::exit;
 
 macro_rules! error {
@@ -57,7 +56,7 @@ impl Args {
 	}
 
 	fn parse_arg<I: std::iter::Iterator<Item = String>>(&mut self, arg: &str, args: &mut I) {
-		let arg: Vec<&str> = match arg.starts_with("-") {
+		let arg: Vec<&str> = match arg.starts_with('-') {
 			true  => vec![&arg[1..]],
 			false => arg.char_indices()
 				.map(|(i, _)| &arg[i..=i])
@@ -74,7 +73,7 @@ impl Args {
 				}; 
 			}
 
-			match arg.trim_start_matches("-") {
+			match arg.trim_start_matches('-') {
 				"h" => {
 					println!("{USAGE}");
 					exit(0);

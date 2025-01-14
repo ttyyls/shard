@@ -1,9 +1,7 @@
-use std::fmt::Display;
-
 mod token;
 pub use token::{Token, TokenKind};
 
-use crate::report::{LogHandler, Report, ReportKind};
+use crate::report::{LogHandler, ReportKind};
 use crate::span::Span;
 
 pub struct Lexer<'source> {
@@ -361,6 +359,12 @@ impl<'source> Lexer<'source> {
 			};
 			lex.push_token_simple(token, len);
 		}
+
+		lex.tokens.push(Token {
+			kind: TokenKind::EOF,
+			span: lex.span.len(0),
+			text: "",
+		});
 
 		lex.tokens
 	}

@@ -10,7 +10,7 @@ use std::sync::mpsc;
 use std::io::{self, Write};
 
 enum Event {
-	Log(Log),
+	Log(&'static str),
 
 	EnableBar(String, ProgressBarKind),
 	ProgressBarSet(f64),
@@ -24,11 +24,6 @@ enum Event {
 	ClearLogBar,
 
 	Terminate,
-}
-
-struct Log {
-	msg: &'static str,
-	llen: usize,
 }
 
 struct ProgressBar {
@@ -49,7 +44,6 @@ const SHARK: &str = "|\\";
 fn thread_loop(rx: mpsc::Receiver<Event>) {
 	let mut bar: Option<ProgressBar> = None;
 	let mut log_bar: String = String::new();
-	let mut out = io::stdout().lock();
 
 	let get_bar = |bar: &ProgressBar| match bar.kind {
 		ProgressBarKind::Percent(p) => format!(
@@ -77,11 +71,11 @@ fn thread_loop(rx: mpsc::Receiver<Event>) {
 		),
 	};
 
-	let redraw = |out: &mut io::StdoutLock, offset: usize, bar: Option<&ProgressBar>, log_bar: &str| {
-		write!(out, "{}", "\x1B[1A\x1B[2K".repeat(offset)).unwrap();
-		write!(out, "{log_bar}").unwrap();
-		bar.map(|bar| write!(out, "{}", get_bar(bar)).unwrap()); 
-		out.flush().unwrap();
+	let redraw = |offset: usize, bar: Option<&ProgressBar>, log_bar: &str| {
+		eprint!("{}", "\x1B[1A\x1B[2K".repeat(offset));
+		eprint!("{log_bar}");
+		bar.map(|bar| eprint!("{}", get_bar(bar))); 
+		io::stderr().flush().unwrap();
 	};
 
 	let offset = |bar_enabled: bool, log_bar: &str|
@@ -90,8 +84,8 @@ fn thread_loop(rx: mpsc::Receiver<Event>) {
 	loop {
 		match rx.recv().expect("Failed to receive event") {
 			Event::Log(log) => {
-				write!(out, "{}", log.msg).unwrap();
-				redraw(&mut out, offset(bar.is_some(), &log_bar) + log.llen, bar.as_ref(), &log_bar);
+				eprint!("{log}");
+				redraw(0, bar.as_ref(), &log_bar);
 			},
 
 			Event::EnableBar(msg, kind) => {
@@ -100,7 +94,7 @@ fn thread_loop(rx: mpsc::Receiver<Event>) {
 					pad: 10, 
 					len: 20,
 				});
-				redraw(&mut out, 0, bar.as_ref(), &log_bar);
+				redraw(0, bar.as_ref(), &log_bar);
 			},
 
 			Event::ProgressBarSet(val) => {
@@ -110,13 +104,13 @@ fn thread_loop(rx: mpsc::Receiver<Event>) {
 						ProgressBarKind::Tasks(ref mut p, _) => *p = val,
 						ProgressBarKind::None(ref mut t)     => *t = val,
 					}
-					redraw(&mut out, offset(true, &log_bar), Some(bar), &log_bar);
+					redraw(offset(true, &log_bar), Some(bar), &log_bar);
 				}
 			},
 
 			Event::DisableBar => {
 				bar = None;
-				redraw(&mut out, offset(false, &log_bar), None, &log_bar);
+				redraw(offset(false, &log_bar), None, &log_bar);
 			},
 
 			Event::ProgressBarMsg(msg) => {
@@ -127,21 +121,21 @@ fn thread_loop(rx: mpsc::Receiver<Event>) {
 
 					let offset = offset(true, &log_bar);
 					bar.msg = msg;
-					redraw(&mut out, offset, Some(bar), &log_bar);
+					redraw(offset, Some(bar), &log_bar);
 				}
 			},
 
 			Event::ProgressBarSetLen(len) => {
 				if let Some(bar) = &mut bar {
 					bar.len = len;
-					redraw(&mut out, offset(true, &log_bar), Some(bar), &log_bar);
+					redraw(offset(true, &log_bar), Some(bar), &log_bar);
 				}
 			},
 
 			Event::ProgressBarSetPad(pad) => {
 				if let Some(bar) = &mut bar {
 					bar.pad = pad;
-					redraw(&mut out, offset(true, &log_bar), Some(bar), &log_bar);
+					redraw(offset(true, &log_bar), Some(bar), &log_bar);
 				}
 			},
 
@@ -149,19 +143,19 @@ fn thread_loop(rx: mpsc::Receiver<Event>) {
 			Event::LogBar(msg) => {
 				let offset = offset(bar.is_some(), &log_bar);
 				log_bar = msg;
-				redraw(&mut out, offset, bar.as_ref(), &log_bar);
+				redraw(offset, bar.as_ref(), &log_bar);
 			},
 
 			Event::AppendLogBar(msg) => {
 				let offset = offset(bar.is_some(), &log_bar);
 				log_bar = log_bar + &msg;
-				redraw(&mut out, offset, bar.as_ref(), &log_bar);
+				redraw(offset, bar.as_ref(), &log_bar);
 			},
 
 			Event::ClearLogBar => {
 				let offset = offset(bar.is_some(), &log_bar);
 				log_bar = String::new();
-				redraw(&mut out, offset, bar.as_ref(), &log_bar);
+				redraw(offset, bar.as_ref(), &log_bar);
 			},
 
 			Event::Terminate => {
@@ -199,15 +193,8 @@ impl LogHandler {
 	}
 
 	pub fn log<T: Display>(&self, log: T) {
-		let log = log.to_string();
-		let log = Box::leak(log.into_boxed_str());
-
-		let event = Event::Log(Log {
-			llen: log.matches('\n').count(),
-			msg: log,
-		});
-
-		self.tx.send(event).expect("Failed to send Log event");
+		self.tx.send(Event::Log(Box::leak(log.to_string().into_boxed_str())))
+			.expect("Failed to send Log event");
 	}
 
 	pub fn bar<T: Display>(&self, msg: T, kind: ProgressBarKind) {

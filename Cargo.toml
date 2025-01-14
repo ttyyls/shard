@@ -1,18 +1,16 @@
 [package]
-name = "sharc"
-version = "0.1.0"
-edition = "2021"
-description = "The compiler for the Shard Programming Language."
-license = "0BSD"
-repository = "https://github.com/shard-org/sharc"
-keywords = ["shard", "compiler", "language", "assembly"]
-categories = ["compiler", "development-tools"]
+name        = "sharc"
+version     = "0.1.0"
+edition     = "2024"
+description = "Compiler for the Shard Programming Language."
+license     = "0BSD"
+repository  = "https://github.com/shard-org/sharc"
+keywords    = ["shard", "compiler", "language", "qbe"]
+categories  = ["compiler", "development-tools"]
 
 
 [dependencies]
 colored = "3.0"   # needed for cross platform
-# iterlist = "0.4"  # made by me so its fine
-
 progress = { path = "progress" }
 
 

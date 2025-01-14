@@ -71,6 +71,8 @@ pub enum TokenKind {
 	ShiftLeft,
 	ShiftRight,
 	Apostrophe,
+
+	EOF,
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -82,22 +84,8 @@ pub struct Token<'source> {
 
 impl std::fmt::Display for Token<'_> {
 	fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-		write!(f, "Token({:?}, {}", self.kind, format!("{:?}", self.span).bright_black())?;
+		write!(f, "Token({:?}, {}", self.kind, self.span.to_string().bright_black())?;
 		if !self.text.is_empty() { write!(f, ", {}", format!("{:?}", self.text).green())?; }
 		write!(f, ")")
-	}
-}
-
-impl TokenKind {
-	pub fn matching(self) -> Self {
-		match self {
-			Self::LBrace   => Self::RBrace,
-			Self::RBrace   => Self::LBrace,
-			Self::LBracket => Self::RBracket,
-			Self::RBracket => Self::LBracket,
-			Self::LParen   => Self::RParen,
-			Self::RParen   => Self::LParen,
-			a => a,
-		}
 	}
 }

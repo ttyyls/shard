@@ -32,7 +32,7 @@ impl Span {
 		self
 	}
 
-	pub fn extend(mut self, other: &Self) -> Self {
+	pub fn extend(self, other: &Self) -> Self {
 		assert!(self.filename == other.filename, "filenames don't match! {} != {}", self.filename, other.filename);
 		assert!(self.line_number == other.line_number, "line numbers don't match! {} != {}", self.line_number, other.line_number);
 		assert!(self.offset <= other.offset, "other.offset behind self.offset! {} > {}", other.offset, self.offset);

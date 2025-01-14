@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::sync::{LazyLock, RwLock};
 
 use crate::report::ReportKind;
-use crate::span::Span;
 
 pub static CACHE: LazyLock<Cache> = LazyLock::new(Cache::new);
 pub struct Cache(RwLock<HashMap<&'static str, &'static str>>); // TODO: make hash faster if slow
