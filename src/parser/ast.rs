@@ -11,7 +11,7 @@ pub enum AST<'src> {
 	Module(&'src str, Vec<AST<'src>>),
 	Func {
 		name: &'src str, 
-		linkage: bool, // TODO: move separate struc; true = export
+		export: bool, // TODO: move separate struc
 		args: Vec<(&'src str, Type<'src>)>,
 		ret:  Option<Type<'src>>,
 		body: Vec<AST<'src>>,
@@ -49,8 +49,8 @@ impl fmt::Display for AST<'_> {
 				}
 				Ok(())
 			}
-			AST::Func { name, linkage, args, ret, body } => {
-				write!(f, "Func: {name} (linkage: {linkage})\n")?;
+			AST::Func { name, export, args, ret, body } => {
+				write!(f, "Func: {name} {})\n", if *export { "export" } else { "" })?;
 				write!(f, "  Args: [")?;
 				for (i, (name, typ)) in args.iter().enumerate() {
 					write!(f, "{name}: {typ}")?;

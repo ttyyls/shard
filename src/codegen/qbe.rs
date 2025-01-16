@@ -11,7 +11,7 @@ pub struct Module<'src> {
 pub struct DataDef<'src> {
 	pub export: bool,
 	pub name:   &'src str, // TODO: prob make an enum for name
-	// pub align:  Option<u64>,
+	pub align:  Option<u8>,
 	pub items:  Vec<(Type, Data)>,
 }
 
@@ -45,8 +45,8 @@ pub enum Value {
 }
 
 pub enum Type {
-	Word, Long, Single, Double, 
-	Byte, HalfWord,
+	Byte, HalfWord, Word, Long, // int
+	Single, Double, // flot
 	Zero, // for zero init
 }
 
@@ -63,6 +63,7 @@ impl Display for DataDef<'_> {
 		if self.export { write!(f, "export ")?; }
 
 		write!(f, "data ${} = ", self.name)?;
+		if let Some(a) = self.align { write!(f, "align {a} ")?; }
 		writeln!(f, "{{")?;
 		self.items.iter().try_for_each(|(t, d)| write!(f, "{t} {d},"))?;
 		writeln!(f, "}}")

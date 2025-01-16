@@ -4,7 +4,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use colored::{Color, Colorize};
 pub use progress::LogHandler;
 
-use crate::fs::CACHE;
+use crate::util::CACHE;
 use crate::span::{self, HighlightKind, Span};
 
 pub static ERR_COUNT: AtomicUsize = AtomicUsize::new(0);

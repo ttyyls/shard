@@ -77,7 +77,7 @@ impl<'src> Parser<'src> {
 
 				match self.parse_global()? {
 					AST::Func { name, args, ret, body, .. } 
-						=> Ok(AST::Func { name, args, ret, body, linkage: true }),
+						=> Ok(AST::Func { name, args, ret, body, export: true }),
 					// TODO: const/static
 					_ => unreachable!(),
 				}
@@ -151,7 +151,7 @@ impl<'src> Parser<'src> {
 			if single_stmt { vec![self.parse_stmt()?] } 
 			else { self.parse_block()? };
 
-		Ok(AST::Func { name, args, ret, body, linkage: false })
+		Ok(AST::Func { name, args, ret, body, export: false })
 	}
 
 	fn parse_block(&mut self) -> Result<Vec<AST<'src>>> {
