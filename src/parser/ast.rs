@@ -1,26 +1,26 @@
 use std::fmt;
+use crate::span::Span;
 
 // TODO !!!!!! @fami-fish pls
-// pub struct Node<'src> {
-// 	pub kind: NodeKind<'src>,
-// 	pub span: Span,
-// }
+pub struct Node<'src> {
+	pub kind: NodeKind<'src>,
+	pub span: Span,
+}
 
-pub enum AST<'src> {
+pub enum NodeKind<'src> {
 	DBG,
-	Module(&'src str, Vec<AST<'src>>),
 	Func {
 		name: &'src str, 
 		export: bool, // TODO: move separate struc
 		args: Vec<(&'src str, Type<'src>)>,
 		ret:  Option<Type<'src>>,
-		body: Vec<AST<'src>>,
+		body: Vec<Node<'src>>,
 	},
 	Type(Type<'src>),
-	Ret(Box<AST<'src>>),
+	Ret(Box<Node<'src>>),
 	FuncCall {
 		name: &'src str,
-		args: Vec<AST<'src>>,
+		args: Vec<Node<'src>>,
 	},
 	StrLit(&'src str),
 	UIntLit(u64),
@@ -37,19 +37,17 @@ pub enum Type<'src> {
 	Ident(&'src str),
 }
 
+impl fmt::Display for Node<'_> {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{} {}", self.span, self.kind)
+	}
+}
 
-impl fmt::Display for AST<'_> {
+impl fmt::Display for NodeKind<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			AST::DBG => write!(f, "DBG"),
-			AST::Module(name, body) => {
-				write!(f, "Module: {name}\n")?;
-				for item in body {
-					writeln!(f, "  {item}")?;
-				}
-				Ok(())
-			}
-			AST::Func { name, export, args, ret, body } => {
+			NodeKind::DBG => write!(f, "DBG"),
+			NodeKind::Func { name, export, args, ret, body } => {
 				write!(f, "Func: {name} {})\n", if *export { "export" } else { "" })?;
 				write!(f, "  Args: [")?;
 				for (i, (name, typ)) in args.iter().enumerate() {
@@ -64,9 +62,9 @@ impl fmt::Display for AST<'_> {
 				}
 				Ok(())
 			}
-			AST::Type(t) => write!(f, "Type: {t}"),
-			AST::Ret(expr) => write!(f, "Ret: {expr}"),
-			AST::FuncCall { name, args } => {
+			NodeKind::Type(t) => write!(f, "Type: {t}"),
+			NodeKind::Ret(expr) => write!(f, "Ret: {expr}"),
+			NodeKind::FuncCall { name, args } => {
 				write!(f, "FuncCall: {name}(")?;
 				for (i, arg) in args.iter().enumerate() {
 					write!(f, "{arg}")?;
@@ -76,8 +74,8 @@ impl fmt::Display for AST<'_> {
 				}
 				write!(f, ")")
 			},
-			AST::StrLit(s)  => write!(f, "StrLit: {s}"),
-			AST::UIntLit(i) => write!(f, "UIntLit: {i}"),
+			NodeKind::StrLit(s)  => write!(f, "StrLit: {s}"),
+			NodeKind::UIntLit(i) => write!(f, "UIntLit: {i}"),
 		}
 	}
 }

@@ -2,7 +2,7 @@ use crate::lexer::{Token, TokenKind};
 use crate::report::{LogHandler, ReportKind, Result};
 
 pub mod ast;
-use ast::{AST, Type};
+use ast::{Node, NodeKind, Type};
 
 pub struct Parser<'src> {
 	tokens:  Vec<Token<'src>>,
@@ -29,8 +29,8 @@ impl<'src> Parser<'src> {
 		// assert!(self.index < self.tokens.len(), "advance() out of bounds");
 	}
 
-	pub fn parse(tokens: Vec<Token<'src>>, filename: &'src str, handler: &LogHandler) -> AST<'src> {
-		let mut ast = AST::Module(filename, Vec::new());
+	pub fn parse(tokens: Vec<Token<'src>>, filename: &'src str, handler: &LogHandler) -> Vec<Node<'src>> {
+		let mut ast = Vec::new();
 
 		if tokens.is_empty() { return ast; }
 
@@ -40,11 +40,8 @@ impl<'src> Parser<'src> {
 		};
 
 		while !matches!(parser.current().kind, TokenKind::EOF) {
-			let AST::Module(_, ref mut globals) = ast
-				else { unreachable!() };
-
 			match parser.parse_global() {
-				Ok(global)  => globals.push(global),
+				Ok(global)  => ast.push(global),
 				Err(report) => {
 					handler.log(report);
 					if matches!(parser.current().kind, TokenKind::EOF) { break; }

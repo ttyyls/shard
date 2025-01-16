@@ -12,16 +12,10 @@ pub struct Gen<'src> {
 }
 
 impl<'src> Gen<'src> {
-	pub fn codegen(ast: Node<'src>, handler: &LogHandler) -> Module<'src> {
+	pub fn codegen(ast: Vec<Node<'src>>, handler: &LogHandler) -> Module<'src> {
 		let mut cgen = Gen::default();
 
-
-		let NodeKind::Module(name, globals) = ast.kind 
-			else { unreachable!() };
-
-		cgen.module.name = name;
-
-		globals.into_iter().for_each(|global|
+		ast.into_iter().for_each(|global|
 			if let Err(e) = cgen.gen_global(global) {
 				handler.log(e);
 			});
@@ -32,10 +26,11 @@ impl<'src> Gen<'src> {
 	fn gen_global(&mut self, ast: Node<'src>) -> Result<()> {
 		match ast.kind {
 			NodeKind::Func { name, export, args, ret, body } => {
-				let func = Function {
-					name, export,
-					
-				};
+				todo!()
+				// let func = Function {
+				// 	name, export,
+				// 	
+				// };
 			},
 			_ => todo!(),
 		}
@@ -50,7 +45,7 @@ impl<'src> Gen<'src> {
 	// Zero, // for zero init
 
 		Ok(match t {
-			Type::U8  => Type::Byte,
+			ast::Type::U8  => Type::Byte,
 			// Type::U16 => Type::
 			// Type::U32 => "u32",
 			// Type::U64 => "u64",

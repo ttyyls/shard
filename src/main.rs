@@ -44,7 +44,7 @@ fn main() {
 
 	if args.debug {
 		eprintln!("\n{}", "PARSER".bold());
-		eprintln!("{ast:#}");
+		ast.iter().for_each(|n| eprintln!("{n:#}"));
 	}
 
 	if report::ERR_COUNT.load(Ordering::Relaxed) > 0 {
