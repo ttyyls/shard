@@ -14,7 +14,6 @@ macro_rules! error {
 pub struct Args {
 	// logging
 	pub debug:        bool,
-	pub code_context: bool,
 	pub level:        u8,
 	
 	// io
@@ -29,7 +28,6 @@ impl Args {
 	pub fn default() -> Self {
 		Self {
 			debug:        false,
-			code_context: true,
 			level:        2, // warn
 
 			file:         "main.shd",

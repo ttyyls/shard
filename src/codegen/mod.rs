@@ -26,11 +26,10 @@ impl<'src> Gen<'src> {
 	fn gen_global(&mut self, ast: Node<'src>) -> Result<()> {
 		match ast.kind {
 			NodeKind::Func { name, export, args, ret, body } => {
-				todo!()
-				// let func = Function {
-				// 	name, export,
-				// 	
-				// };
+				let func = Function {
+					name, export,
+					
+				};
 			},
 			_ => todo!(),
 		}
@@ -40,12 +39,9 @@ impl<'src> Gen<'src> {
 		let AST::Type(t) = ty.kind
 			else { unreachable!() };
 
-	// Word, Long, Single, Double,
-	// Byte, HalfWord,
-	// Zero, // for zero init
-
 		Ok(match t {
 			ast::Type::U8  => Type::Byte,
+
 			// Type::U16 => Type::
 			// Type::U32 => "u32",
 			// Type::U64 => "u64",

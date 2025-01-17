@@ -28,7 +28,7 @@ fn main() {
 	let handler = report::LogHandler::new();
 
 
-	let tokens = lexer::Lexer::tokenize(args.file, util::CACHE.get(args.file), handler.clone());
+	let tokens = lexer::Lexer::tokenize(util::CACHE.get(args.file), &handler);
 
 	if args.debug {
 		eprintln!("\n{}", "LEXER".bold());
