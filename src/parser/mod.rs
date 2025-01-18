@@ -72,14 +72,14 @@ impl<'src> Parser<'src> {
 						.untitled().span(token.span).as_err();
 				}
 
-        let mut r = self.parse_global()?;
-
+				let mut r = self.parse_global()?;
 				match r.kind {
-					NodeKind::Func { name, args, ret, body, .. } 
-						=> Ok({
-                r.kind = NodeKind::Func { name, args, ret, body, export: true };
-                r
-            }),
+					NodeKind::Func { .. } => Ok({
+						let NodeKind::Func { ref mut export, .. } = r.kind
+							else { unreachable!() };
+						*export = true;
+						r
+					}),
 					// TODO: const/static
 					_ => unreachable!(),
 				}
@@ -194,8 +194,8 @@ impl<'src> Parser<'src> {
 		let ast = match token.kind {
 			TokenKind::KWRet => {
 				self.advance();
-        // TODO:
-        // Verify
+				// TODO:
+				// Verify
 				NodeKind::Ret(Box::new(self.parse_expr()?))
 			},
 
@@ -266,8 +266,8 @@ impl<'src> Parser<'src> {
 			// _ => self.parse_expr()?,
 		};
 
-    // TODO:
-    // Verify span.
+		// TODO:
+		// Verify span.
 		Ok(Node { kind: ast, span: token.span.extend(&self.current().span) })
 }
 

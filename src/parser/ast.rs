@@ -29,7 +29,9 @@ pub enum Type<'src> {
 	U8, U16, U32, U64,
 	I8, I16, I32, I64,
 	B8, B16, B32, B64,
-	Void,
+	F32, F64,
+	Void, Never,
+	Opt(Box<Type<'src>>),
 	Ptr(Box<Type<'src>>),
 	Arr(Box<Type<'src>>),
 	Mut(Box<Type<'src>>),
@@ -42,12 +44,13 @@ impl fmt::Display for Node<'_> {
 	}
 }
 
+// TODO: better display for this shit prob
 impl fmt::Display for NodeKind<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
 			NodeKind::DBG => write!(f, "DBG"),
 			NodeKind::Func { name, export, args, ret, body } => {
-				write!(f, "Func: {name} {})\n", if *export { "export" } else { "" })?;
+				write!(f, "Func: {name} {}\n", if *export { "export" } else { "" })?;
 				write!(f, "  Args: [")?;
 				for (i, (name, typ)) in args.iter().enumerate() {
 					write!(f, "{name}: {typ}")?;
@@ -73,7 +76,7 @@ impl fmt::Display for NodeKind<'_> {
 				}
 				write!(f, ")")
 			},
-			NodeKind::StrLit(s)  => write!(f, "StrLit: {s}"),
+			NodeKind::StrLit(s)  => write!(f, "StrLit: \"{s}\""),
 			NodeKind::UIntLit(i) => write!(f, "UIntLit: {i}"),
 		}
 	}
@@ -94,7 +97,11 @@ impl fmt::Display for Type<'_> {
 			Type::B16 => "b16",
 			Type::B32 => "b32",
 			Type::B64 => "b64",
+			Type::F32 => "f32",
+			Type::F64 => "f64",
 			Type::Void => "void",
+			Type::Never => "never",
+			Type::Opt(i) => return write!(f, "opt {i}"),
 			Type::Ptr(i) => return write!(f, "*{i}"),
 			Type::Arr(i) => return write!(f, "[{i}]"),
 			Type::Mut(i) => return write!(f, "mut {i}"),
@@ -102,4 +109,3 @@ impl fmt::Display for Type<'_> {
 		})
 	}
 }
-
