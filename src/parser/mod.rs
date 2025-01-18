@@ -1,8 +1,9 @@
 use crate::lexer::{Token, TokenKind};
 use crate::report::{LogHandler, ReportKind, Result};
+use crate::span::Span;
 
 pub mod ast;
-use ast::{Node, NodeKind, Type};
+use ast::{Node, Type, Sp, Spannable};
 
 pub struct Parser<'src> {
 	tokens:  Vec<Token<'src>>,
@@ -29,7 +30,7 @@ impl<'src> Parser<'src> {
 		// assert!(self.index < self.tokens.len(), "advance() out of bounds");
 	}
 
-	pub fn parse(tokens: Vec<Token<'src>>, filename: &'static str, handler: &LogHandler) -> Vec<Node<'src>> {
+	pub fn parse(tokens: Vec<Token<'src>>, filename: &'static str, handler: &LogHandler) -> Vec<Sp<Node<'src>>> {
 		let mut ast = Vec::new();
 
 		if tokens.is_empty() { return ast; }
@@ -59,7 +60,7 @@ impl<'src> Parser<'src> {
 		ast
 	}
 
-	fn parse_global(&mut self) -> Result<Node<'src>> {
+	fn parse_global(&mut self) -> Result<Sp<Node<'src>>> {
 		let token = self.current();
 
 		match token.kind {
@@ -73,11 +74,12 @@ impl<'src> Parser<'src> {
 				}
 
 				let mut r = self.parse_global()?;
-				match r.kind {
-					NodeKind::Func { .. } => Ok({
-						let NodeKind::Func { ref mut export, .. } = r.kind
+				match *r {
+					Node::Func { .. } => Ok({
+						let Node::Func { ref mut export, .. } = *r
 							else { unreachable!() };
-						*export = true;
+						**export = true;
+						r.span = token.span.extend(&r.span);
 						r
 					}),
 					// TODO: const/static
@@ -89,12 +91,12 @@ impl<'src> Parser<'src> {
 		}
 	}
 
-	fn parse_func(&mut self) -> Result<Node<'src>> {
+	fn parse_func(&mut self) -> Result<Sp<Node<'src>>> {
 		self.advance();
 
 		let token = self.current();
 		let name = match token.kind {
-			TokenKind::Identifier => token.text,
+			TokenKind::Identifier => token.text.span(token.span),
 			_ => return ReportKind::UnexpectedToken
 				.title("Expected identifier")
 				.span(token.span).as_err(),
@@ -117,7 +119,7 @@ impl<'src> Parser<'src> {
 			match token.kind {
 				TokenKind::RParen => break,
 				TokenKind::Identifier => {
-					let name = token.text;
+					let name = token.text.span(token.span);
 					self.advance();
 
 					let token = self.current();
@@ -153,10 +155,13 @@ impl<'src> Parser<'src> {
 			if single_stmt { vec![self.parse_stmt()?] } 
 			else { self.parse_block()? };
 
-		Ok(Node { kind: NodeKind::Func { name, args, ret, body, export: false }, span: token.span.extend(&self.current().span) })
+		Ok(Node::Func { 
+			name, args, ret, body, 
+			export: false.span(Span::new(0)) // never use this :)
+		}.span(token.span.extend(&self.current().span)))
 	}
 
-	fn parse_block(&mut self) -> Result<Vec<Node<'src>>> {
+	fn parse_block(&mut self) -> Result<Vec<Sp<Node<'src>>>> {
 		let mut body = Vec::new();
 
 		loop {
@@ -174,7 +179,7 @@ impl<'src> Parser<'src> {
 		Ok(body)
 	}
 
-	fn parse_stmt(&mut self) -> Result<Node<'src>> {
+	fn parse_stmt(&mut self) -> Result<Sp<Node<'src>>> {
 		let ast = self.parse_expr()?;
 
 		let token = self.current();
@@ -188,7 +193,7 @@ impl<'src> Parser<'src> {
 		Ok(ast)
 	}
 
-	fn parse_expr(&mut self) -> Result<Node<'src>> {
+	fn parse_expr(&mut self) -> Result<Sp<Node<'src>>> {
 		let token = self.current();
 
 		let ast = match token.kind {
@@ -196,7 +201,7 @@ impl<'src> Parser<'src> {
 				self.advance();
 				// TODO:
 				// Verify
-				NodeKind::Ret(Box::new(self.parse_expr()?))
+				Node::Ret(Box::new(self.parse_expr()?))
 			},
 
 			TokenKind::Dollar => {
@@ -210,7 +215,7 @@ impl<'src> Parser<'src> {
 						.span(token.span).as_err();
 				}
 
-				let name = token.text;
+				let name = token.text.span(token.span);
 
 				self.advance();
 				let args = match self.current().kind {
@@ -240,19 +245,19 @@ impl<'src> Parser<'src> {
 					_ => vec![self.parse_expr()?],
 				};
 
-				NodeKind::FuncCall { name, args }
+				Node::FuncCall { name, args }
 			},
 
 			TokenKind::StringLiteral => {
 				let text = token.text;
 				self.advance();
-				NodeKind::StrLit(text)
+				Node::StrLit(text)
 			},
 
 			TokenKind::DecimalIntLiteral => {
 				let text = token.text;
 				self.advance();
-				NodeKind::UIntLit(text.parse::<u64>()
+				Node::UIntLit(text.parse::<u64>()
 					.map_err(|_| ReportKind::InvalidNumber
 						.title("Invalid integer literal")
 						.span(token.span))?)
@@ -268,15 +273,15 @@ impl<'src> Parser<'src> {
 
 		// TODO:
 		// Verify span.
-		Ok(Node { kind: ast, span: token.span.extend(&self.current().span) })
+		Ok(ast.span(token.span.extend(&self.current().span)))
 }
 
-	fn parse_type(&mut self) -> Result<Type<'src>> {
+	fn parse_type(&mut self) -> Result<Sp<Type<'src>>> {
 		let token = self.current();
 		self.advance();
 
 		Ok(match token.kind {
-			TokenKind::Star => Type::Ptr(Box::new(self.parse_type()?)),
+			TokenKind::Star => Type::Ptr(Box::new(self.parse_type()?)).span(token.span),
 			TokenKind::LBracket => {
 				let ty = self.parse_type()?;
 
@@ -287,7 +292,7 @@ impl<'src> Parser<'src> {
 				}
 				self.advance();
 
-				Type::Arr(Box::new(ty))
+				Type::Arr(Box::new(ty)).span(token.span.extend(&self.current().span))
 			},
 			TokenKind::Identifier => match token.text {
 				"u8"   => Type::U8,
@@ -305,7 +310,7 @@ impl<'src> Parser<'src> {
 				"void" => Type::Void,
 				"mut"  => Type::Mut(Box::new(self.parse_type()?)),
 				_ => Type::Ident(token.text),
-			},
+			}.span(token.span),
 			_ => return ReportKind::UnexpectedToken
 				.title("Expected type")
 				.span(token.span).as_err(),

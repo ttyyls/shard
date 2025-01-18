@@ -1,25 +1,46 @@
-use std::fmt;
+use std::fmt::{self, Display};
 use crate::span::Span;
 
-pub struct Node<'src> {
-	pub kind: NodeKind<'src>,
+use colored::Colorize;
+
+pub struct Sp<T> {
 	pub span: Span,
+	pub elem: T,
 }
 
-pub enum NodeKind<'src> {
+impl<T> std::ops::Deref for Sp<T> {
+	type Target = T;
+	fn deref(&self) -> &Self::Target 
+		{ &self.elem }
+}
+
+impl<T> std::ops::DerefMut for Sp<T> {
+	fn deref_mut(&mut self) -> &mut Self::Target 
+		{ &mut self.elem }
+}
+
+pub trait Spannable {
+	fn span(self, span: Span) -> Sp<Self> where Self: Sized;
+}
+
+impl<T> Spannable for T {
+	fn span(self, span: Span) -> Sp<Self> where Self: Sized 
+		{ Sp { span, elem: self } }
+}
+
+pub enum Node<'src> {
 	DBG,
 	Func {
-		name: &'src str, 
-		export: bool, // TODO: move separate struc
-		args: Vec<(&'src str, Type<'src>)>,
-		ret:  Option<Type<'src>>,
-		body: Vec<Node<'src>>,
+		name:   Sp<&'src str>, 
+		export: Sp<bool>, // TODO: move separate struc
+		args:   Vec<(Sp<&'src str>, Sp<Type<'src>>)>,
+		ret:    Option<Sp<Type<'src>>>,
+		body:   Vec<Sp<Node<'src>>>
 	},
-	Type(Type<'src>),
-	Ret(Box<Node<'src>>),
+	Ret(Box<Sp<Node<'src>>>),
 	FuncCall {
-		name: &'src str,
-		args: Vec<Node<'src>>,
+		name: Sp<&'src str>,
+		args: Vec<Sp<Node<'src>>>,
 	},
 	StrLit(&'src str),
 	UIntLit(u64),
@@ -31,43 +52,43 @@ pub enum Type<'src> {
 	B8, B16, B32, B64,
 	F32, F64,
 	Void, Never,
-	Opt(Box<Type<'src>>),
-	Ptr(Box<Type<'src>>),
-	Arr(Box<Type<'src>>),
-	Mut(Box<Type<'src>>),
+	Opt(Box<Sp<Type<'src>>>),
+	Ptr(Box<Sp<Type<'src>>>),
+	Arr(Box<Sp<Type<'src>>>),
+	Mut(Box<Sp<Type<'src>>>),
 	Ident(&'src str),
 }
 
-impl fmt::Display for Node<'_> {
+impl<T: Display> Display for Sp<T> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{} {}", self.span, self.kind)
+		write!(f, "{} {}", self.span, self.elem)
 	}
 }
 
 // TODO: better display for this shit prob
-impl fmt::Display for NodeKind<'_> {
+impl Display for Node<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			NodeKind::DBG => write!(f, "DBG"),
-			NodeKind::Func { name, export, args, ret, body } => {
-				write!(f, "Func: {name} {}\n", if *export { "export" } else { "" })?;
-				write!(f, "  Args: [")?;
+			Node::DBG => write!(f, "DBG"),
+			Node::Func { name, export, args, ret, body } => {
+				write!(f, "Func: {}\n", name.to_string().blue())?;
+				writeln!(f, "   Export: {export}")?;
+				write!(f, "   Args: [")?;
 				for (i, (name, typ)) in args.iter().enumerate() {
 					write!(f, "{name}: {typ}")?;
 					if i != args.len() - 1 {
 						write!(f, ", ")?;
 					}
 				}
-				write!(f, "]\n  Ret: {}\n", ret.as_ref().map_or("void".to_string(), ToString::to_string))?;
+				write!(f, "]\n   Ret: {}\n", ret.as_ref().map_or("void".to_string(), ToString::to_string))?;
 				for stmt in body {
-					writeln!(f, "    {stmt}")?;
+					writeln!(f, "      {stmt}")?;
 				}
 				Ok(())
 			}
-			NodeKind::Type(t) => write!(f, "Type: {t}"),
-			NodeKind::Ret(expr) => write!(f, "Ret: {expr}"),
-			NodeKind::FuncCall { name, args } => {
-				write!(f, "FuncCall: {name}(")?;
+			Node::Ret(expr) => write!(f, "Ret: {expr}"),
+			Node::FuncCall { name, args } => {
+				write!(f, "FuncCall: {}(", name.to_string().blue())?;
 				for (i, arg) in args.iter().enumerate() {
 					write!(f, "{arg}")?;
 					if i != args.len() - 1 {
@@ -76,13 +97,13 @@ impl fmt::Display for NodeKind<'_> {
 				}
 				write!(f, ")")
 			},
-			NodeKind::StrLit(s)  => write!(f, "StrLit: \"{s}\""),
-			NodeKind::UIntLit(i) => write!(f, "UIntLit: {i}"),
+			Node::StrLit(s)  => write!(f, "StrLit: {}", format!("{s:?}").green()),
+			Node::UIntLit(i) => write!(f, "UIntLit: {}", i.to_string().green()),
 		}
 	}
 }
 
-impl fmt::Display for Type<'_> {
+impl Display for Type<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", match self {
 			Type::U8  => "u8",
@@ -106,6 +127,6 @@ impl fmt::Display for Type<'_> {
 			Type::Arr(i) => return write!(f, "[{i}]"),
 			Type::Mut(i) => return write!(f, "mut {i}"),
 			Type::Ident(name) => name,
-		})
+		}.red())
 	}
 }

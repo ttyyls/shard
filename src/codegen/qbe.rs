@@ -90,6 +90,8 @@ impl Display for Function<'_> {
 		if let Some(t) = &self.ret { write!(f, "{t} ")?; }
 
 		writeln!(f, "{{")?;
+		writeln!(f, "@start")?;
+
 		self.body.iter().try_for_each(|i| writeln!(f, "\t{i}"))?;
 		writeln!(f, "}}")
 	}
