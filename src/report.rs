@@ -27,6 +27,9 @@ pub enum ReportKind {
 	UnexpectedEOF,
 	InvalidNumber,
 
+	// Codegen
+	InvalidType,
+
 	// General
 	IOError,
 	SyntaxError,

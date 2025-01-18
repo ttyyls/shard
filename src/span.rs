@@ -1,3 +1,5 @@
+use colored::Colorize;
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Span {
 	pub start: usize,
@@ -6,7 +8,7 @@ pub struct Span {
 
 impl std::fmt::Display for Span {
 	fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-		write!(f, "{}-{}", self.start, self.end)
+		write!(f, "{}", format!("{}-{}", self.start, self.end).bright_black())
 	}
 }
 
