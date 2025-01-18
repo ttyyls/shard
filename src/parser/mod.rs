@@ -199,9 +199,13 @@ impl<'src> Parser<'src> {
 		let ast = match token.kind {
 			TokenKind::KWRet => {
 				self.advance();
+
 				// TODO:
 				// Verify
-				Node::Ret(Box::new(self.parse_expr()?))
+				match self.current().kind {
+					TokenKind::Semicolon => Node::Ret(None),
+					_ => Node::Ret(Some(Box::new(self.parse_expr()?))),
+				}
 			},
 
 			TokenKind::Dollar => {
@@ -274,7 +278,7 @@ impl<'src> Parser<'src> {
 		// TODO:
 		// Verify span.
 		Ok(ast.span(token.span.extend(&self.current().span)))
-}
+	}
 
 	fn parse_type(&mut self) -> Result<Sp<Type<'src>>> {
 		let token = self.current();

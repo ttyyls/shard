@@ -10,9 +10,9 @@ pub struct Module<'src> {
 #[derive(Default)]
 pub struct DataDef<'src> {
 	pub export: bool,
-	pub name:   &'src str, // TODO: prob make an enum for name
+	pub name:   String,
 	pub align:  Option<u8>,
-	pub items:  Vec<(Type, Data)>,
+	pub items:  Vec<(Type<'src>, Data)>,
 }
 
 pub enum Data {
@@ -24,17 +24,17 @@ pub enum Data {
 pub struct Function<'src> {
 	pub export: bool,
 	pub name:   &'src str,
-	pub args:   Vec<(Type, Value)>, // val must be temp
-	pub ret:    Option<Type>,
-	pub body:   Vec<Instr>,
+	pub args:   Vec<(Type<'src>, Value)>, // val must be temp
+	pub ret:    Option<Type<'src>>,
+	pub body:   Vec<Instr<'src>>,
 }
 
-pub enum Instr {
-	Assign(Value, Type, Box<Instr>),
+pub enum Instr<'src> {
+	Assign(Value, Type<'src>, Box<Instr<'src>>),
 	Ret(Option<Value>),
 	Call {
 		func: Value,
-		args: Vec<(Value, Type)>,
+		args: Vec<(Value, Type<'src>)>,
 	}
 }
 
@@ -44,10 +44,11 @@ pub enum Value {
 	Const(u64),
 }
 
-pub enum Type {
+pub enum Type<'src> {
 	Byte, HalfWord, Word, Long, // int
 	Single, Double, // flot
 	Zero, // for zero init
+	Composite(&'src str),
 }
 
 
@@ -64,7 +65,7 @@ impl Display for DataDef<'_> {
 
 		write!(f, "data ${} = ", self.name)?;
 		if let Some(a) = self.align { write!(f, "align {a} ")?; }
-		writeln!(f, "{{")?;
+		write!(f, "{{")?;
 		self.items.iter().try_for_each(|(t, d)| write!(f, "{t} {d},"))?;
 		writeln!(f, "}}")
 	}
@@ -83,11 +84,11 @@ impl Display for Function<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if self.export { write!(f, "export ")?; }
 
-		write!(f, "function {}(", self.name)?;	
+		write!(f, "function {} ${}(",
+			self.ret.as_ref().map_or(String::new(), ToString::to_string),
+			self.name)?;
 		self.args.iter().try_for_each(|(t, v)| write!(f, "{t} {v}, "))?;
 		write!(f, ") ")?;
-
-		if let Some(t) = &self.ret { write!(f, "{t} ")?; }
 
 		writeln!(f, "{{")?;
 		writeln!(f, "@start")?;
@@ -97,7 +98,7 @@ impl Display for Function<'_> {
 	}
 }
 
-impl Display for Instr {
+impl Display for Instr<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		match self {
 			Self::Assign(v, t, i) => write!(f, "{v} ={t} {i}"),
@@ -122,7 +123,7 @@ impl Display for Value {
 	}
 }
 
-impl Display for Type {
+impl Display for Type<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		write!(f, "{}", match self {
 			Self::Word     => 'w',
@@ -132,6 +133,7 @@ impl Display for Type {
 			Self::Byte     => 'b',
 			Self::HalfWord => 'h',
 			Self::Zero     => 'z',
+			Self::Composite(s) => return write!(f, ":{s}"),
 		})
 	}
 }

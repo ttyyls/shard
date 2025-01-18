@@ -20,13 +20,11 @@ impl<T> std::ops::DerefMut for Sp<T> {
 }
 
 pub trait Spannable {
-	fn span(self, span: Span) -> Sp<Self> where Self: Sized;
-}
-
-impl<T> Spannable for T {
-	fn span(self, span: Span) -> Sp<Self> where Self: Sized 
+	fn span(self, span: Span) -> Sp<Self> where Self: Sized
 		{ Sp { span, elem: self } }
 }
+
+impl<T> Spannable for T {}
 
 pub enum Node<'src> {
 	DBG,
@@ -37,7 +35,7 @@ pub enum Node<'src> {
 		ret:    Option<Sp<Type<'src>>>,
 		body:   Vec<Sp<Node<'src>>>
 	},
-	Ret(Box<Sp<Node<'src>>>),
+	Ret(Option<Box<Sp<Node<'src>>>>),
 	FuncCall {
 		name: Sp<&'src str>,
 		args: Vec<Sp<Node<'src>>>,
@@ -86,7 +84,10 @@ impl Display for Node<'_> {
 				}
 				Ok(())
 			}
-			Node::Ret(expr) => write!(f, "Ret: {expr}"),
+			Node::Ret(expr) => match expr {
+				Some(expr) => write!(f, "Ret: {expr}"),
+				None => write!(f, "Ret"),
+			},
 			Node::FuncCall { name, args } => {
 				write!(f, "FuncCall: {}(", name.to_string().blue())?;
 				for (i, arg) in args.iter().enumerate() {
