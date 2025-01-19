@@ -49,7 +49,7 @@ impl<'src> Gen<'src> {
 		*id - 1
 	}
 
-	pub fn codegen(ast: Vec<Sp<Node<'src>>>, handler: &LogHandler) -> Module<'src> {
+	pub fn codegen(file: &'static str, ast: Vec<Sp<Node<'src>>>, handler: &LogHandler) -> Module<'src> {
 		let mut cgen = Gen {
 			module: Module::default(),
 			scope_stack: vec![Scope::default()],
@@ -58,7 +58,7 @@ impl<'src> Gen<'src> {
 
 		ast.into_iter().for_each(|global|
 			if let Err(e) = cgen.gen_global(global) {
-				handler.log(e);
+				handler.log(e.file(file));
 			});
 
 		cgen.module
@@ -87,10 +87,7 @@ impl<'src> Gen<'src> {
 					name: &name,
 					export: *export,
 					args: out_args,
-					ret: match ret {
-						Some(ty) => self.gen_type(&ty)?,
-						None => None,
-					},
+					ret:  ret.and_then(|ty| self.gen_type(&ty).transpose()).transpose()?,
 					body: body.into_iter().map(|stmt| self.gen_stmt(stmt)).collect::<Result<_>>()?,
 				};
 
@@ -106,10 +103,11 @@ impl<'src> Gen<'src> {
 			Node::Ret(None)       => Instr::Ret(None),
 			Node::Ret(Some(expr)) => Instr::Ret(Some(self.gen_expr(&expr)?.0)),
 			Node::FuncCall { name, args } => {
-
 				Instr::Call {
 					// TODO: check if in scope
-					func: Value::Global(name.elem.to_string()),
+					func: self.peek_scope().locals.get(&*name).map_or_else(
+						|| Value::Global(name.elem.to_string()),
+						|(i, _)| Value::Temp(i.to_string())),
 					args: args.into_iter().map(|arg| self.gen_expr(&arg)).collect::<Result<_>>()?,
 				}
 			},
@@ -121,12 +119,29 @@ impl<'src> Gen<'src> {
 		Ok(match ast.elem {
 			Node::UIntLit(n) => (Value::Const(n), Type::Long),
 			Node::StrLit(s)  => {
+				// TODO: prevent user from naming shit like this
 				let name = format!("__tmp{}", self.gen_id());
+
+				let mut items = Vec::new();
+				let mut chars = s.chars();
+
+				while let Some(c) = chars.next() {
+					if matches!(c, '\x00'..='\x1f') {
+						items.push((Type::Byte, Data::Const(u64::from(c as u8))));
+						continue;
+					}
+
+					match items.last_mut() {
+						Some((_, Data::Str(s))) => s.push(c),
+						_ => items.push((Type::Byte, Data::Str(c.to_string()))),	
+					}
+				}
+
 				self.module.data.push(DataDef {
 					name:   name.clone(),
 					export: false,
 					align:  None,
-					items:  vec![(Type::Byte, Data::Str(s.to_string()))],
+					items,
 				});
 
 				(Value::Global(name), Type::Long)
