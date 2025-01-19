@@ -151,20 +151,10 @@ impl Display for Report {
 				line += 1;
 			}
 
-			let mut line_end = line_start;
-			while let Some(pos) = file[line_end..].find('\n') {
-				if line_end + pos >= span.end { break; }
-				line_end += pos + 1;
-			}
-
 			let col = span.start - line_start + 1;
 
-			writeln!(f, " {} {}:{}:{}", 
-				"--->".cyan(), 
-				self.file,
-				if line_start == line_end { line_start.to_string() }
-				else { format!("{line_start}-{line_end}") },
-				col)?;
+			writeln!(f, " {} {}:{line}:{col}", 
+				"-->".cyan(), self.file)?;
 
 			let line_str = line.to_string();
 
@@ -181,12 +171,12 @@ impl Display for Report {
 
 			writeln!(f, "{padding}{}{}{}",
 				&trimmed_start,
-				file[span.start..span.end].color(secondary).bold(),
-				&file[span.end..line_start + line.len()].trim_end())?;
+				file[span.start..=span.end].color(secondary).bold(),
+				&file[span.end+1..line_start + line.len()].trim_end())?;
 
 			writeln!(f, "{padding}{}{}",
 				" ".repeat(trimmed_start.len()),
-				"^".repeat(span.end - span.start).color(primary).bold())?;
+				"^".repeat(span.end+1 - span.start).color(primary).bold())?;
 		}
 
 		if let Some(footers) = &self.footers {
