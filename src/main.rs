@@ -28,36 +28,27 @@ fn main() {
 	let handler = report::LogHandler::new();
 
 
+	if args.debug { eprintln!("\n{}", "LEXER".bold()); }
 	let tokens = lexer::Lexer::tokenize(args.file, util::CACHE.get(args.file), handler.clone());
-
-	if args.debug {
-		eprintln!("\n{}", "LEXER".bold());
-		tokens.iter().for_each(|token| eprintln!("{token:#}"));
-	}
+	if args.debug { tokens.iter().for_each(|token| eprintln!("{token:#}")); }
 
 	if report::ERR_COUNT.load(Ordering::Relaxed) > 0 {
 		std::process::exit(1);
 	}
 
 
+	if args.debug { eprintln!("\n{}", "PARSER".bold()); }
 	let ast = parser::Parser::parse(tokens, args.file, &handler);
-
-	if args.debug {
-		eprintln!("\n{}", "PARSER".bold());
-		ast.iter().for_each(|n| eprintln!("{n:#}"));
-	}
+	if args.debug { ast.iter().for_each(|n| eprintln!("{n:#}")); }
 
 	if report::ERR_COUNT.load(Ordering::Relaxed) > 0 {
 		std::process::exit(1);
 	}
 
 
+	if args.debug { eprintln!("\n{}", "CODEGEN".bold()); }
 	let code = codegen::Gen::codegen(args.file, ast, &handler);
-
-	if args.debug {
-		eprintln!("\n{}", "CODEGEN".bold());
-		eprintln!("{code}");
-	}
+	if args.debug { eprintln!("{code}"); }
 
 	if report::ERR_COUNT.load(Ordering::Relaxed) > 0 {
 		std::process::exit(1);
