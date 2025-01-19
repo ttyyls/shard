@@ -1,11 +1,13 @@
 mod token;
 pub use token::{Token, TokenKind};
 
-use crate::report::{LogHandler, ReportKind};
+use crate::report::{LogHandler, ReportKind, Report};
 use crate::span::Span;
 
 #[allow(clippy::complexity)]
 pub struct Lexer<'src> {
+	file:     &'static str,
+	handler:  LogHandler,
 	contents: &'src str,
 	iter:     std::iter::Peekable<std::iter::Map<std::str::CharIndices<'src>, fn((usize, char)) -> usize>>,
 	index:    usize,
@@ -13,12 +15,20 @@ pub struct Lexer<'src> {
 }
 
 impl<'src> Lexer<'src> {
+	fn log(&self, report: Report) {
+		self.log(report.file(self.file));
+	}
+
 	fn next(&mut self) -> Option<&'src str> {
-		self.iter.next().map(|i| { self.index = i; &self.contents[i..=i] })
+		self.iter.next().map(|i| { 
+			self.index = i; 
+			&self.contents[i..*self.iter.peek().unwrap_or(&self.contents.len())] 
+		})
 	}
 
 	fn peek(&mut self) -> Option<&'src str> {
-		self.iter.peek().map(|i| &self.contents[*i..=*i])
+		self.iter.peek().map(|i| &self.contents[*i..
+		*i + self.contents[*i..].char_indices().nth(1).map_or(self.contents.len(), |(i, _)| i)])
 	}
 
 	fn push_token(&mut self, kind: TokenKind, start: usize, end: usize) {
@@ -43,9 +53,9 @@ impl<'src> Lexer<'src> {
 		self.push_token(kind, index, self.index);
 	}
 
-	pub fn tokenize(contents: &'src str, handler: &LogHandler) -> Vec<Token<'src>> {
+	pub fn tokenize(file: &'static str, contents: &'src str, handler: LogHandler) -> Vec<Token<'src>> {
 		let mut lex = Self {
-			contents,
+			file, handler, contents,
 			index: 0,
 			iter: contents.char_indices().map((|(i, _)| i) as fn((usize, char)) -> usize).peekable(),
 			tokens: Vec::new(),
@@ -71,7 +81,7 @@ impl<'src> Lexer<'src> {
 									lex.next();
 									depth -= 1;
 								},
-								None => handler.log(
+								None => lex.log(
 									ReportKind::UnterminatedMultilineComment
 										.title(format!("{depth} comments never terminated"))
 										.span(Span::new(index).end(lex.index))),
@@ -112,7 +122,7 @@ impl<'src> Lexer<'src> {
 
 				"\"" => {
 					let Some(&start) = lex.iter.peek() else {
-						handler.log(
+						lex.log(
 							ReportKind::UnterminatedLiteral
 								.untitled()
 								.span(lex.span_from(index)));
@@ -124,7 +134,7 @@ impl<'src> Lexer<'src> {
 						match lex.next() {
 							Some("\"") => break,
 							None => {
-								handler.log(
+								lex.log(
 									ReportKind::UnterminatedLiteral
 										.untitled()
 										.span(lex.span_from(index)));
@@ -139,7 +149,7 @@ impl<'src> Lexer<'src> {
 
 				"'" => {
 					let Some(&start) = lex.iter.peek() else {
-						handler.log(
+						lex.log(
 							ReportKind::UnterminatedLiteral
 								.untitled()
 								.span(lex.span_from(index)));
@@ -147,7 +157,7 @@ impl<'src> Lexer<'src> {
 					};
 
 					if matches!(lex.peek(), Some("'")) {
-						handler.log(
+						lex.log(
 							ReportKind::EmptyLiteral
 								.untitled()
 								.span(lex.span_from(index)));
@@ -159,7 +169,7 @@ impl<'src> Lexer<'src> {
 						"\\" => {
 							if matches!(lex.next(), Some("'")) && !matches!(lex.peek(), Some("'")) {
 								lex.next();
-								handler.log(
+								lex.log(
 									ReportKind::UnterminatedLiteral
 										.untitled()
 										.span(lex.span_from(index))
@@ -171,7 +181,7 @@ impl<'src> Lexer<'src> {
 						},
 
 						"\n" => {
-							handler.log(
+							lex.log(
 								ReportKind::UnterminatedLiteral
 									.untitled().span(lex.span_from(index)));
 							continue;
@@ -179,7 +189,7 @@ impl<'src> Lexer<'src> {
 
 						_ => {
 							if !matches!(lex.peek(), Some("'")) {
-								handler.log(
+								lex.log(
 									ReportKind::UnterminatedLiteral
 										.untitled().span(lex.span_from(index)));
 								continue;
@@ -205,25 +215,24 @@ impl<'src> Lexer<'src> {
 					lex.next();
 					let start = lex.index;
 
-					if !lex.lex_integer(handler, base) { continue; }
+					if !lex.lex_integer(base) { continue; }
 
 					lex.push_token(kind, start, lex.index);
 				},
 
 				c if c.chars().any(|c| c.is_ascii_digit()) => {
 					let start = lex.index;
-					if !lex.lex_integer(handler, 10) { continue; }
+					if !lex.lex_integer(10) { continue; }
 
 					if matches!(lex.peek(), Some(".")) {
 						lex.next();
 
-						if !lex.lex_integer(handler, 10) { continue; }
+						if !lex.lex_integer(10) { continue; }
 
 						if matches!(lex.peek(), Some(".")) {
-							handler.log(
-								ReportKind::SyntaxError
-									.title("Invalid Float Literal")
-									.span(lex.span_from(index)));
+							lex.log(ReportKind::SyntaxError
+								.title("Invalid Float Literal")
+								.span(lex.span_from(index)));
 							lex.next();
 							continue;
 						}
@@ -298,7 +307,8 @@ impl<'src> Lexer<'src> {
 						},
 						"?" => (TokenKind::Question, 1),
 						c => {
-							handler.log(ReportKind::UnexpectedCharacter.title(c).span(lex.span_from(index)));
+							lex.log(ReportKind::UnexpectedCharacter
+								.title(format!("'{c}'")).span(lex.span_from(index)));
 							continue;
 						},
 					};
@@ -317,7 +327,7 @@ impl<'src> Lexer<'src> {
 		lex.tokens
 	}
 
-	fn lex_integer(&mut self, handler: &LogHandler, base: usize) -> bool {
+	fn lex_integer(&mut self, base: usize) -> bool {
 		const CHARS: [char; 16] =
 			['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 
@@ -334,7 +344,7 @@ impl<'src> Lexer<'src> {
 				c if f(c) || c == '_' => self.next(),
 
 				c if c.is_ascii_alphanumeric() => {
-					handler.log(
+					self.log(
 						ReportKind::SyntaxError
 							.title("Invalid Integer Literal")
 							.span(self.span_from(self.index - 1))

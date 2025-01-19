@@ -28,7 +28,7 @@ fn main() {
 	let handler = report::LogHandler::new();
 
 
-	let tokens = lexer::Lexer::tokenize(util::CACHE.get(args.file), &handler);
+	let tokens = lexer::Lexer::tokenize(args.file, util::CACHE.get(args.file), handler.clone());
 
 	if args.debug {
 		eprintln!("\n{}", "LEXER".bold());
@@ -52,7 +52,7 @@ fn main() {
 	}
 
 
-	let code = codegen::Gen::codegen(ast, &handler);
+	let code = codegen::Gen::codegen(args.file, ast, &handler);
 
 	if args.debug {
 		eprintln!("\n{}", "CODEGEN".bold());
