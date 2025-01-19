@@ -325,6 +325,7 @@ impl<'src> Parser<'src> {
 				"b32"  => Type::B32,
 				"b64"  => Type::B64,
 				"void" => Type::Void,
+				"opt"  => Type::Opt(Box::new(self.parse_type()?)),
 				"mut"  => Type::Mut(Box::new(self.parse_type()?)),
 				_ => Type::Ident(token.text),
 			}.span(token.span),
