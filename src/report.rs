@@ -29,6 +29,7 @@ pub enum ReportKind {
 
 	// Codegen
 	InvalidType,
+	Undefined,
 
 	// General
 	IOError,

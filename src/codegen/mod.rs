@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use crate::parser::ast::{self, Node, Sp, Type as aType, Spannable};
 use crate::report::{Result, LogHandler, ReportKind};
 
-mod qbe;
-use qbe::{Module, Function, Instr, Value, Type, DataDef, Data};
+mod llvm;
+use llvm::{Module, Function, Instr, Value, Type, DataDef, DataAttr, FuncDecl, FuncAttr, ValueKind};
 
 pub struct Gen<'src> {
 	module:      Module<'src>,
@@ -23,7 +23,7 @@ pub enum TypeDef<'src> {
 #[derive(Default)]
 struct Scope<'src> {
 	idacc:  u64,
-	locals: HashMap<&'src str, (u64, Sp<aType<'src>>)>,
+	locals: HashMap<ValueKind, (u64, Sp<aType<'src>>)>,
 }
 
 impl<'src> Gen<'src> {
@@ -35,16 +35,24 @@ impl<'src> Gen<'src> {
 		self.scope_stack.pop();
 	}
 
-	fn peek_scope(&mut self) -> &mut Scope<'src> {
+	fn peek_scope_mut(&mut self) -> &mut Scope<'src> {
 		self.scope_stack.last_mut().unwrap()
 	}
 
-	fn get_global(&mut self) -> &mut Scope<'src> {
+	fn peek_scope(&self) -> &Scope<'src> {
+		self.scope_stack.last().unwrap()
+	}
+
+	fn get_global_mut(&mut self) -> &mut Scope<'src> {
 		self.scope_stack.first_mut().unwrap()
 	}
 
+	fn get_global(&self) -> &Scope<'src> {
+		self.scope_stack.first().unwrap()
+	}
+
 	fn gen_id(&mut self) -> u64 {
-		let id = &mut self.peek_scope().idacc;
+		let id = &mut self.peek_scope_mut().idacc;
 		*id += 1;
 		*id - 1
 	}
@@ -78,14 +86,17 @@ impl<'src> Gen<'src> {
 							.title("Type of arg may not be void")
 							.span(name.span).as_err();
 					};
-					self.peek_scope().locals.insert(&name, (id, ty));
+					self.peek_scope_mut().locals.insert(ValueKind::Temp(name.elem.to_string()), (id, ty));
 
-					out_args.push((nty, Value::Temp(id.to_string())));
+					out_args.push(Value::new(ValueKind::Temp(id.to_string()), nty));
 				}
 
+				let mut attr = FuncAttr::empty();
+				if *export { attr |= FuncAttr::EXPORT; }
+
 				let func = Function {
+					attr,
 					name: &name,
-					export: *export,
 					args: out_args,
 					ret:  ret.and_then(|ty| self.gen_type(&ty).transpose()).transpose()?,
 					body: body.into_iter().map(|stmt| self.gen_stmt(stmt)).collect::<Result<_>>()?,
@@ -98,82 +109,79 @@ impl<'src> Gen<'src> {
 		Ok(())
 	}
 
-	fn gen_stmt(&mut self, ast: Sp<Node<'src>>) -> Result<Instr<'src>> {
+	fn gen_stmt(&mut self, ast: Sp<Node<'src>>) -> Result<Instr> {
 		Ok(match ast.elem {
 			Node::Assign { name, ty, value } => {
-				todo!("Move gen_expr to gen_atom and make a new gen_expr");
-				Instr::Assign(Value::Temp(name.elem.to_string()), self.gen_type(&ty)?.expect("todo: implicit type"), Box::new(self.gen_stmt(*value)?))
+				todo!("Move gen_expr to gen_atom and make a new gen_expr"); // FIXME TODO
+				//Instr::Assign(Value::Temp(name.elem.to_string()), self.gen_type(&ty)?.expect("todo: implicit type"), Box::new(self.gen_stmt(*value)?))
 			}
 			Node::Ret(None)       => Instr::Ret(None),
-			Node::Ret(Some(expr)) => Instr::Ret(Some(self.gen_expr(&expr)?.0)),
-			Node::FuncCall { name, args } => {
-				Instr::Call {
-					// TODO: check if in scope
-					func: self.peek_scope().locals.get(&*name).map_or_else(
-						|| Value::Global(name.elem.to_string()),
-						|(i, _)| Value::Temp(i.to_string())),
-					args: args.into_iter().map(|arg| self.gen_expr(&arg)).collect::<Result<_>>()?,
-				}
+			Node::Ret(Some(expr)) => Instr::Ret(Some(self.gen_expr(&expr)?)),
+			Node::FuncCall { name, args } => Instr::Call {
+				func: match self.peek_scope().locals.get(&ValueKind::Temp(name.elem.to_string())) {
+					Some((i, t)) => Value::new(ValueKind::Temp(i.to_string()), self.gen_type(t)?),
+					None => {
+						let Some((i, t)) = self.get_global().locals.get(&ValueKind::Global(name.elem.to_string())) else {
+							return ReportKind::Undefined
+								.title("Call to an undefined function")
+								.span(name.span).as_err();
+						};
+						
+						Value::new(ValueKind::Global(i.to_string()), self.gen_type(t)?)
+					}
+				} ,
+				args: args.into_iter().map(|arg| self.gen_expr(&arg)).collect::<Result<_>>()?,
 			},
 			_ => panic!("GOT: {}", ast),
 		})
 	}
 
-	fn gen_expr(&mut self, ast: &Sp<Node<'src>>) -> Result<(Value, Type<'src>)> {
+	fn gen_expr(&mut self, ast: &Sp<Node<'src>>) -> Result<Value> {
 		Ok(match &ast.elem {
-			Node::UIntLit(n) => (Value::Const(*n), Type::Long),
+			Node::UIntLit(n) => Value::new(ValueKind::Const(*n), Type::Ptr),
 			Node::StrLit(s)  => {
 				// TODO: prevent user from naming shit like this
-				let name = format!("__tmp{}", self.gen_id());
-
-				let mut items = Vec::new();
-				let mut chars = s.chars();
-
-				while let Some(c) = chars.next() {
-					if matches!(c, '\x00'..='\x1f') {
-						items.push((Type::Byte, Data::Const(u64::from(c as u8))));
-						continue;
-					}
-
-					match items.last_mut() {
-						Some((_, Data::Str(s))) => s.push(c),
-						_ => items.push((Type::Byte, Data::Str(c.to_string()))),	
-					}
-				}
+				let val = ValueKind::Global(format!("__tmp{}", self.gen_id()));
 
 				self.module.data.push(DataDef {
-					name:   name.clone(),
-					export: false,
-					align:  None,
-					items,
+					name:   val.clone(),
+					attr:   DataAttr::INTERNAL | DataAttr::CONSTANT,
+					value:  Value::new(ValueKind::Str(s.clone()), Type::Array(s.len(), Box::new(Type::Sint(8)))),
 				});
 
-				(Value::Global(name), Type::Long)
+				Value::new(val, Type::Ptr)
 			},
 			_ => todo!(),
 		})
 	}
 
-	fn gen_type(&self, ty: &Sp<aType<'src>>) -> Result<Option<Type<'src>>> {
+	fn gen_type(&self, ty: &Sp<aType>) -> Result<Option<Type>> {
 		Ok(Some(match &ty.elem {
-			aType::U8  | aType::B8  | aType::I8  => Type::Byte,
-			aType::U16 | aType::B16 | aType::I16 => Type::HalfWord,
-			aType::U32 | aType::B32 | aType::I32 => Type::Word,
-			aType::U64 | aType::B64 | aType::I64 => Type::Long,
+			aType::U8  | aType::B8 => Type::Uint(8),
+			aType::I8  => Type::Sint(8),
 
-			aType::F32 => Type::Single,
-			aType::F64 => Type::Double,
+			aType::U16 | aType::B16 => Type::Uint(16),
+			aType::I16 => Type::Sint(16),
+
+			aType::U32 | aType::B32 => Type::Uint(32),
+			aType::I32 => Type::Sint(32),
+
+			aType::U64 | aType::B64 => Type::Uint(64),
+			aType::I64 => Type::Sint(64),
+
+			aType::F32 => Type::Float(32),
+			aType::F64 => Type::Float(64),
 
 			aType::Void | aType::Never => return Ok(None),
 
-			aType::Opt(_) | aType::Ptr(_) => Type::Long,
+			aType::Opt(ty) | aType::Mut(ty) => return self.gen_type(&ty),
+			aType::Ptr(_) => Type::Ptr,
 			aType::Arr(_) => return ReportKind::InvalidType
 				.title("Stack arrays are not yet supported")
 				.help("Heap allocate :L")
 				.span(ty.span).as_err(),
-			aType::Mut(ty) => return self.gen_type(&ty),
 			aType::Ident(i) => match self.typedefs.get(i) {
-				Some(TypeDef::Struct { .. } | TypeDef::Enum { .. }) => Type::Composite(i),
+				Some(TypeDef::Struct { .. } | TypeDef::Enum { .. }) => todo!("llvm composite types"),
 				Some(TypeDef::Alias(ty)) => return self.gen_type(ty),
 				None => return ReportKind::InvalidType
 					.title("Undefined type")
