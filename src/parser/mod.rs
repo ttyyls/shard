@@ -1,9 +1,8 @@
 use crate::lexer::{Token, TokenKind};
 use crate::report::{LogHandler, ReportKind, Result};
-use crate::span::Span;
 
 pub mod ast;
-use ast::{Node, Type, Sp, Spannable};
+use ast::{Node, Type, Attrs, Sp, Spannable};
 
 pub struct Parser<'src> {
 	tokens:  Vec<Token<'src>>,
@@ -14,6 +13,13 @@ impl<'src> Parser<'src> {
 	#[inline]
 	fn current(&self) -> Token<'src> {
 		self.tokens[self.index]
+	}
+
+	// TODO: use this for all occurences of anvance+check
+	#[inline]
+	fn advance_if<F: FnOnce(TokenKind) -> bool>(&mut self, f: F) -> bool {
+		if f(self.current().kind) { self.advance(); true }
+		else { false }
 	}
 
 	#[inline]
@@ -76,9 +82,9 @@ impl<'src> Parser<'src> {
 				let mut r = self.parse_global()?;
 				match *r {
 					Node::Func { .. } => Ok({
-						let Node::Func { ref mut export, .. } = *r
+						let Node::Func { ref mut attrs, .. } = *r
 							else { unreachable!() };
-						**export = true;
+						attrs.push(Attrs::Export.span(token.span));
 						r.span = token.span.extend(&r.span);
 						r
 					}),
@@ -155,10 +161,8 @@ impl<'src> Parser<'src> {
 			if single_stmt { vec![self.parse_stmt()?] } 
 			else { self.parse_block()? };
 
-		Ok(Node::Func { 
-			name, args, ret, body, 
-			export: false.span(Span::new(0)) // never use this :)
-		}.span(token.span.extend(&self.current().span)))
+		Ok(Node::Func { name, args, ret, body, attrs: Vec::new() }
+			.span(token.span.extend(&self.current().span)))
 	}
 
 	fn parse_block(&mut self) -> Result<Vec<Sp<Node<'src>>>> {
@@ -252,7 +256,6 @@ impl<'src> Parser<'src> {
 			},
 
 			TokenKind::Dollar => {
-				// FIXME: parse more than one arg. ex: `$printf("num: %d", 42)`
 				self.advance();
 				let token = self.current();
 
@@ -280,18 +283,9 @@ impl<'src> Parser<'src> {
 								_ => args.push(self.parse_expr()?)
 							}
 
-							if ![
-								TokenKind::Identifier,
-								TokenKind::FloatLiteral,
-								TokenKind::DecimalIntLiteral,
-								TokenKind::Dollar,
-								TokenKind::LParen,
-								TokenKind::Comma,
-								TokenKind::RParen,
-								// TODO: Other expected tokens
-							].iter().any(|&t| self.current().kind == t) {
+							if self.current().kind != TokenKind::Semicolon {
 								return ReportKind::UnexpectedToken
-									.title(format!("Got unexpected token '{:?}'", self.current().kind))
+									.title(format!("'{:?}'", self.current().kind))
 									.span(self.current().span).as_err();
 							}
 						}
@@ -334,11 +328,9 @@ impl<'src> Parser<'src> {
 						.span(token.span))?)
 			},
 
-			_ => {
-				return ReportKind::UnexpectedToken
-					.title("Expected expression")
-					.span(token.span).as_err();
-			},
+			_ => return ReportKind::UnexpectedToken
+				.title("Expected expression")
+				.span(token.span).as_err(),
 			// _ => self.parse_expr()?,
 		};
 
@@ -366,22 +358,15 @@ impl<'src> Parser<'src> {
 				Type::Arr(Box::new(ty)).span(token.span.extend(&self.current().span))
 			},
 			TokenKind::Identifier => match token.text {
-				"u8"   => Type::U8,
-				"u16"  => Type::U16,
-				"u32"  => Type::U32,
-				"u64"  => Type::U64,
-				"i8"   => Type::I8,
-				"i16"  => Type::I16,
-				"i32"  => Type::I32,
-				"i64"  => Type::I64,
-				"b8"   => Type::B8,
-				"b16"  => Type::B16,
-				"b32"  => Type::B32,
-				"b64"  => Type::B64,
-				"void" => Type::Void,
-				"opt"  => Type::Opt(Box::new(self.parse_type()?)),
-				"mut"  => Type::Mut(Box::new(self.parse_type()?)),
-				_ => Type::Ident(token.text),
+				n if n.starts_with('u') => Type::U(n[1..].parse().unwrap()),
+				n if n.starts_with('i') => Type::I(n[1..].parse().unwrap()),
+				n if n.starts_with('b') => Type::B(n[1..].parse().unwrap()),
+				n if n.starts_with('f') => Type::F(n[1..].parse().unwrap()),
+				"void"  => Type::Void,
+				"never" => Type::Never,
+				"opt"   => Type::Opt(Box::new(self.parse_type()?)),
+				"mut"   => Type::Mut(Box::new(self.parse_type()?)),
+				n => Type::Ident(n),
 			}.span(token.span),
 			_ => return ReportKind::UnexpectedToken
 				.title("Expected type")

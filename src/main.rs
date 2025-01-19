@@ -54,12 +54,10 @@ fn main() {
 		std::process::exit(1);
 	}
 
-	if !args.output.is_empty() {
-		std::fs::write(args.output, code.to_string()).unwrap();
-	} else {
-		println!("{code}");
+	match args.output.is_empty() {
+		true => println!("{code}"),
+		false => std::fs::write(args.output, code.to_string()).unwrap(),
 	}
-
 
 	handler.terminate();
 }

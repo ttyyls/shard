@@ -37,12 +37,13 @@ pub struct FuncDecl<'src> {
 	pub name: &'src str,
 	pub attr: FuncAttr,
 	pub args: Vec<Type>,
-	pub ret:  Type,
+	pub ret:  Option<Type>,
 }
 
 bitflags::bitflags! {
 	pub struct FuncAttr: u32 {
 		const EXPORT = 1;
+		const NOUNWIND = 1 << 1;
 	}
 }
 
@@ -98,6 +99,7 @@ impl Display for DataAttr {
 impl Display for FuncAttr {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
 		if self.contains(Self::EXPORT) { write!(f, "export ")?; }
+		if self.contains(Self::NOUNWIND) { write!(f, "nounwind ")?; }
 		Ok(())
 	}
 }
@@ -134,7 +136,9 @@ impl Display for Function<'_> {
 
 impl Display for FuncDecl<'_> {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		write!(f, "declare {} @{}(", self.ret, self.name)?;
+		write!(f, "declare {} @{}(", 
+			self.ret.as_ref().map_or(String::new(), ToString::to_string),
+			self.name)?;
 		self.args.iter().try_for_each(|t| write!(f, "{t}, "))?;
 		write!(f, ")")?;
 		self.attr.iter().try_for_each(|a| write!(f, " {a}"))?;

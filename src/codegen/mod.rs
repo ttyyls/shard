@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::parser::ast::{self, Node, Sp, Type as aType, Spannable};
+use crate::parser::ast::{Node, Sp, Attrs, Type as aType};
 use crate::report::{Result, LogHandler, ReportKind};
 
 mod llvm;
@@ -74,7 +74,18 @@ impl<'src> Gen<'src> {
 
 	fn gen_global(&mut self, ast: Sp<Node<'src>>) -> Result<()> {
 		match ast.elem {
-			Node::Func { name, export, args, ret, body } => {
+			Node::Func { name, attrs, args, ret, .. } if attrs.iter().any(|a| matches!(&**a, Attrs::Extern)) => {
+				let decl = FuncDecl {
+					name: name.elem,
+					attr: Self::gen_func_attr(&attrs),
+					// TODO: sematntic analysis check for invalid types as args
+					args: args.into_iter().map(|(_, ty)| self.gen_type(&ty).transpose().unwrap()).collect::<Result<_>>()?,
+					ret:  ret.and_then(|ty| self.gen_type(&ty).transpose()).transpose()?,
+				};
+
+				self.module.decls.push(decl);
+			},
+			Node::Func { name, attrs, args, ret, body } => {
 				self.push_scope();
 
 				let mut out_args = Vec::new();
@@ -92,7 +103,8 @@ impl<'src> Gen<'src> {
 				}
 
 				let mut attr = FuncAttr::empty();
-				if *export { attr |= FuncAttr::EXPORT; }
+				if attrs.iter().any(|a| matches!(&**a, Attrs::Export)) 
+					{ attr |= FuncAttr::EXPORT; }
 
 				let func = Function {
 					attr,
@@ -107,6 +119,13 @@ impl<'src> Gen<'src> {
 			_ => todo!(),
 		}
 		Ok(())
+	}
+
+	fn gen_func_attr(attrs: &[Sp<Attrs>]) -> FuncAttr {
+		attrs.iter().fold(FuncAttr::empty(), |acc, a| acc | match &**a {
+			Attrs::Export => FuncAttr::EXPORT,
+			Attrs::Extern | Attrs::Pub => FuncAttr::empty(),
+		})
 	}
 
 	fn gen_stmt(&mut self, ast: Sp<Node<'src>>) -> Result<Instr> {
@@ -132,7 +151,7 @@ impl<'src> Gen<'src> {
 				} ,
 				args: args.into_iter().map(|arg| self.gen_expr(&arg)).collect::<Result<_>>()?,
 			},
-			_ => panic!("GOT: {}", ast),
+			_ => panic!("GOT: {ast}"),
 		})
 	}
 
@@ -157,20 +176,9 @@ impl<'src> Gen<'src> {
 
 	fn gen_type(&self, ty: &Sp<aType>) -> Result<Option<Type>> {
 		Ok(Some(match &ty.elem {
-			aType::U8  | aType::B8 => Type::Uint(8),
-			aType::I8  => Type::Sint(8),
-
-			aType::U16 | aType::B16 => Type::Uint(16),
-			aType::I16 => Type::Sint(16),
-
-			aType::U32 | aType::B32 => Type::Uint(32),
-			aType::I32 => Type::Sint(32),
-
-			aType::U64 | aType::B64 => Type::Uint(64),
-			aType::I64 => Type::Sint(64),
-
-			aType::F32 => Type::Float(32),
-			aType::F64 => Type::Float(64),
+			aType::U(i) | aType::B(i) => Type::Uint(*i),
+			aType::I(i) => Type::Sint(*i),
+			aType::F(i) => Type::Float(*i),
 
 			aType::Void | aType::Never => return Ok(None),
 

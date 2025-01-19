@@ -29,8 +29,8 @@ impl<T> Spannable for T {}
 pub enum Node<'src> {
 	DBG,
 	Func {
-		name:   Sp<&'src str>, 
-		export: Sp<bool>, // TODO: move separate struc
+		name:   Sp<&'src str>,
+		attrs:  Vec<Sp<Attrs>>,
 		args:   Vec<(Sp<&'src str>, Sp<Type<'src>>)>,
 		ret:    Option<Sp<Type<'src>>>,
 		body:   Vec<Sp<Node<'src>>>
@@ -49,11 +49,14 @@ pub enum Node<'src> {
 	UIntLit(u64),
 }
 
+pub enum Attrs {
+	Export,
+	Extern,
+	Pub,
+}
+
 pub enum Type<'src> {
-	U8, U16, U32, U64,
-	I8, I16, I32, I64,
-	B8, B16, B32, B64,
-	F32, F64,
+	U(u16), I(u16), B(u16), F(u16),
 	Void, Never,
 	Opt(Box<Sp<Type<'src>>>),
 	Ptr(Box<Sp<Type<'src>>>),
@@ -72,10 +75,14 @@ impl<T: Display> Display for Sp<T> {
 impl Display for Node<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Node::DBG => write!(f, "DBG"),
-			Node::Func { name, export, args, ret, body } => {
-				write!(f, "Func: {}\n", name.to_string().blue())?;
-				writeln!(f, "   Export: {export}")?;
+			Self::DBG => write!(f, "DBG"),
+			Self::Func { name, attrs, args, ret, body } => {
+				writeln!(f, "Func: {}", name.to_string().blue())?;
+
+				write!(f, "Attrs: [")?;
+				attrs.iter().try_for_each(|a| write!(f, "{a} "))?;
+				writeln!(f, "]")?;
+
 				write!(f, "   Args: [")?;
 				for (i, (name, typ)) in args.iter().enumerate() {
 					write!(f, "{name}: {typ}")?;
@@ -89,14 +96,14 @@ impl Display for Node<'_> {
 				}
 				Ok(())
 			},
-			Node::Assign { name, value, ty } => {
+			Self::Assign { name, value, ty } => {
 				write!(f, "Assignment: {}: {} = {}", name.to_string().blue(), ty, value)
 			},
-			Node::Ret(expr) => match expr {
+			Self::Ret(expr) => match expr {
 				Some(expr) => write!(f, "Ret: {expr}"),
 				None => write!(f, "Ret"),
 			},
-			Node::FuncCall { name, args } => {
+			Self::FuncCall { name, args } => {
 				write!(f, "FuncCall: {}(", name.to_string().blue())?;
 				for (i, arg) in args.iter().enumerate() {
 					write!(f, "{arg}")?;
@@ -106,8 +113,8 @@ impl Display for Node<'_> {
 				}
 				write!(f, ")")
 			},
-			Node::StrLit(s)  => write!(f, "StrLit: {}", format!("{s:?}").green()),
-			Node::UIntLit(i) => write!(f, "UIntLit: {}", i.to_string().green()),
+			Self::StrLit(s)  => write!(f, "StrLit: {}", format!("{s:?}").green()),
+			Self::UIntLit(i) => write!(f, "UIntLit: {}", i.to_string().green()),
 		}
 	}
 }
@@ -115,27 +122,27 @@ impl Display for Node<'_> {
 impl Display for Type<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		write!(f, "{}", match self {
-			Type::U8  => "u8",
-			Type::U16 => "u16",
-			Type::U32 => "u32",
-			Type::U64 => "u64",
-			Type::I8  => "i8",
-			Type::I16 => "i16",
-			Type::I32 => "i32",
-			Type::I64 => "i64",
-			Type::B8  => "b8",
-			Type::B16 => "b16",
-			Type::B32 => "b32",
-			Type::B64 => "b64",
-			Type::F32 => "f32",
-			Type::F64 => "f64",
-			Type::Void => "void",
-			Type::Never => "never",
-			Type::Opt(i) => return write!(f, "opt {i}"),
-			Type::Ptr(i) => return write!(f, "*{i}"),
-			Type::Arr(i) => return write!(f, "[{i}]"),
-			Type::Mut(i) => return write!(f, "mut {i}"),
-			Type::Ident(name) => name,
+			Self::U(i)   => format!("u{i}"),
+			Self::I(i)   => format!("i{i}"),
+			Self::B(i)   => format!("b{i}"),
+			Self::F(i)   => format!("f{i}"),
+			Self::Void   => String::from("void"),
+			Self::Never  => String::from("never"),
+			Self::Opt(i) => format!("opt {i}"),
+			Self::Ptr(i) => format!("*{i}"),
+			Self::Arr(i) => format!("[{i}]"),
+			Self::Mut(i) => format!("mut {i}"),
+			Self::Ident(name) => String::from(*name),
 		}.red())
+	}
+}
+
+impl Display for Attrs {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", match self {
+			Self::Export => "export",
+			Self::Extern => "extern",
+			Self::Pub    => "pub",
+		}.yellow().dimmed())
 	}
 }

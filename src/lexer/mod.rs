@@ -16,7 +16,7 @@ pub struct Lexer<'src> {
 
 impl<'src> Lexer<'src> {
 	fn log(&self, report: Report) {
-		self.log(report.file(self.file));
+		self.handler.log(report.file(self.file));
 	}
 
 	fn next(&mut self) -> Option<&'src str> {
@@ -106,7 +106,7 @@ impl<'src> Lexer<'src> {
 					
 					let ident = lex.slice(index, lex.index + 1);
 					let kind = match ident {
-						"let"     => TokenKind::KWLet,
+						"let"    => TokenKind::KWLet,
 						"fn"     => TokenKind::KWFn,
 						"export" => TokenKind::KWExport,
 						"ret"    => TokenKind::KWRet,
