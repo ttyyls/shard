@@ -180,7 +180,13 @@ impl<'src> Parser<'src> {
 	}
 
 	fn parse_stmt(&mut self) -> Result<Sp<Node<'src>>> {
-		let ast = self.parse_expr()?;
+		let token = self.current();
+		let ast = if token.kind == TokenKind::KWLet {
+			self.advance();
+			self.parse_assignment()
+		} else {
+			self.parse_expr()
+		}?;
 
 		let token = self.current();
 		if !matches!(token.kind, TokenKind::Semicolon) {
@@ -191,6 +197,43 @@ impl<'src> Parser<'src> {
 
 		self.advance();
 		Ok(ast)
+	}
+
+	fn parse_assignment(&mut self) -> Result<Sp<Node<'src>>> {
+		let tok = self.current();
+		if tok.kind != TokenKind::Identifier {
+			return Err(Box::new(ReportKind::UnexpectedToken
+				.title(format!("Expected identifier, got '{:?}'", tok.kind))
+				.span(tok.span)
+			));
+		}
+		self.advance();
+
+		if self.current().kind != TokenKind::Colon {
+			return Err(Box::new(ReportKind::UnexpectedToken
+				.title(format!("Expected ':', got '{:?}'", tok.kind))
+				.span(self.current().span)
+			));
+		}
+		self.advance();
+		
+		let ty = self.parse_type()?;
+
+		if self.current().kind != TokenKind::Equals {
+			return Err(Box::new(ReportKind::UnexpectedToken
+				.title(format!("Expected '=', got '{:?}'", tok.kind))
+				.span(self.current().span)
+			));
+		}
+		self.advance();
+		
+		let value: Sp<Node<'src>> = self.parse_expr()?;
+
+		Ok(Node::Assign {
+			name: tok.text.span(tok.span),
+			ty,
+			value: Box::new(value)
+		}.span(tok.span.extend(&self.current().span)))
 	}
 
 	fn parse_expr(&mut self) -> Result<Sp<Node<'src>>> {

@@ -35,6 +35,11 @@ pub enum Node<'src> {
 		ret:    Option<Sp<Type<'src>>>,
 		body:   Vec<Sp<Node<'src>>>
 	},
+	Assign {
+		name: Sp<&'src str>,
+		ty: Sp<Type<'src>>,
+		value: Box<Sp<Node<'src>>>
+	},
 	Ret(Option<Box<Sp<Node<'src>>>>),
 	FuncCall {
 		name: Sp<&'src str>,
@@ -83,7 +88,10 @@ impl Display for Node<'_> {
 					writeln!(f, "      {stmt}")?;
 				}
 				Ok(())
-			}
+			},
+			Node::Assign { name, value, ty } => {
+				write!(f, "Assignment: {}: {} = {}", name.to_string().blue(), ty, value)
+			},
 			Node::Ret(expr) => match expr {
 				Some(expr) => write!(f, "Ret: {expr}"),
 				None => write!(f, "Ret"),

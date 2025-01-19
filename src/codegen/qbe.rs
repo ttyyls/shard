@@ -35,7 +35,7 @@ pub enum Instr<'src> {
 	Call {
 		func: Value,
 		args: Vec<(Value, Type<'src>)>,
-	}
+	},
 }
 
 pub enum Value {

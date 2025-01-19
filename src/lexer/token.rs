@@ -8,14 +8,15 @@ use crate::span::Span;
 pub enum TokenKind {
 	Identifier,
 
-	KWFn,
+	KWEnum,
 	KWExport,
+	KWExtern,
+	KWFn,
+	KWImpl,
+	KWLet,
 	KWRet,
 	KWStruct,
-	KWEnum,
-	KWImpl,
 	KWType,
-	KWExtern,
 
 	FloatLiteral,
 

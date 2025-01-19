@@ -100,6 +100,10 @@ impl<'src> Gen<'src> {
 
 	fn gen_stmt(&mut self, ast: Sp<Node<'src>>) -> Result<Instr<'src>> {
 		Ok(match ast.elem {
+			Node::Assign { name, ty, value } => {
+				todo!("Move gen_expr to gen_atom and make a new gen_expr");
+				Instr::Assign(Value::Temp(name.elem.to_string()), self.gen_type(&ty)?.expect("todo: implicit type"), Box::new(self.gen_stmt(*value)?))
+			}
 			Node::Ret(None)       => Instr::Ret(None),
 			Node::Ret(Some(expr)) => Instr::Ret(Some(self.gen_expr(&expr)?.0)),
 			Node::FuncCall { name, args } => {
@@ -111,7 +115,7 @@ impl<'src> Gen<'src> {
 					args: args.into_iter().map(|arg| self.gen_expr(&arg)).collect::<Result<_>>()?,
 				}
 			},
-			_ => todo!(),
+			_ => panic!("GOT: {}", ast),
 		})
 	}
 
