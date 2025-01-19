@@ -116,8 +116,8 @@ impl<'src> Gen<'src> {
 	}
 
 	fn gen_expr(&mut self, ast: &Sp<Node<'src>>) -> Result<(Value, Type<'src>)> {
-		Ok(match ast.elem {
-			Node::UIntLit(n) => (Value::Const(n), Type::Long),
+		Ok(match &ast.elem {
+			Node::UIntLit(n) => (Value::Const(*n), Type::Long),
 			Node::StrLit(s)  => {
 				// TODO: prevent user from naming shit like this
 				let name = format!("__tmp{}", self.gen_id());
