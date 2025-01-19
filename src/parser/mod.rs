@@ -113,7 +113,7 @@ impl<'src> Parser<'src> {
 		}
 
 		let mut args = Vec::new();
-		loop {
+		loop { // FIXME: parse more than one arg. ex: `$printf("num: %d", 42)`
 			self.advance();
 			let token = self.current();
 			match token.kind {
