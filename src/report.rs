@@ -177,13 +177,15 @@ impl Display for Report {
 					"Could not fetch line.".color(Color::Red).bold());
 			};
 
-			writeln!(f, "{padding}{}{}{}",
-				&file[line_start..span.start],
-				file[span.start..span.end].color(secondary).bold(),
-				&file[span.end..line_start + line.len()])?;
+			let trimmed_start = file[line_start..span.start].trim_start();
 
-			writeln!(f, "{padding}{} {}",
-				" ".repeat(file[line_start..span.start].len()),
+			writeln!(f, "{padding}{}{}{}",
+				&trimmed_start,
+				file[span.start..span.end].color(secondary).bold(),
+				&file[span.end..line_start + line.len()].trim_end())?;
+
+			writeln!(f, "{padding}{}{}",
+				" ".repeat(trimmed_start.len()),
 				"^".repeat(span.end - span.start).color(primary).bold())?;
 		}
 
