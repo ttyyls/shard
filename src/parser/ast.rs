@@ -1,33 +1,9 @@
 use std::fmt::{self, Display};
-use crate::span::Span;
+use crate::span::{Span, Sp, Spannable};
 
 use colored::Colorize;
 
-pub struct Sp<T> {
-	pub span: Span,
-	pub elem: T,
-}
-
-impl<T> std::ops::Deref for Sp<T> {
-	type Target = T;
-	fn deref(&self) -> &Self::Target 
-		{ &self.elem }
-}
-
-impl<T> std::ops::DerefMut for Sp<T> {
-	fn deref_mut(&mut self) -> &mut Self::Target 
-		{ &mut self.elem }
-}
-
-pub trait Spannable {
-	fn span(self, span: Span) -> Sp<Self> where Self: Sized
-		{ Sp { span, elem: self } }
-}
-
-impl<T> Spannable for T {}
-
 pub enum Node<'src> {
-	DBG,
 	Func {
 		name:   Sp<&'src str>,
 		attrs:  Vec<Sp<Attrs>>,
@@ -55,66 +31,60 @@ pub enum Attrs {
 	Pub,
 }
 
+#[derive(Clone)]
 pub enum Type<'src> {
-	U(u16), I(u16), B(u16), F(u16),
+	U(u32), I(u32), B(u32), F(u32),
 	Void, Never,
 	Opt(Box<Sp<Type<'src>>>),
 	Ptr(Box<Sp<Type<'src>>>),
-	Arr(Box<Sp<Type<'src>>>),
+	Arr(Box<Sp<Type<'src>>>, Option<u64>),
 	Mut(Box<Sp<Type<'src>>>),
+	Fn(Vec<Sp<Type<'src>>>, Option<Box<Sp<Type<'src>>>>),
 	Ident(&'src str),
-}
-
-impl<T: Display> Display for Sp<T> {
-	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-		write!(f, "{} {}", self.span, self.elem)
-	}
 }
 
 // TODO: better display for this shit prob
 impl Display for Node<'_> {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			Self::DBG => write!(f, "DBG"),
 			Self::Func { name, attrs, args, ret, body } => {
-				writeln!(f, "Func: {}", name.to_string().blue())?;
-
-				write!(f, "Attrs: [")?;
 				attrs.iter().try_for_each(|a| write!(f, "{a} "))?;
-				writeln!(f, "]")?;
-
-				write!(f, "   Args: [")?;
+				write!(f, "{} {}(", "fn".yellow().dimmed(), name.red())?;
 				for (i, (name, typ)) in args.iter().enumerate() {
 					write!(f, "{name}: {typ}")?;
-					if i != args.len() - 1 {
-						write!(f, ", ")?;
-					}
+					if i != args.len() - 1 { write!(f, ", ")?; }
 				}
-				write!(f, "]\n   Ret: {}\n", ret.as_ref().map_or("void".to_string(), ToString::to_string))?;
-				for stmt in body {
-					writeln!(f, "      {stmt}")?;
+				write!(f, ")")?;
+
+				if let Some(ret) = ret { write!(f, " {ret}")?; }
+
+				if body.is_empty() {
+					write!(f, ";")?;
+					return Ok(());
 				}
-				Ok(())
+
+				writeln!(f, " {{")?;
+				body.iter().try_for_each(|s| writeln!(f, "   {s}"));
+				writeln!(f, "}}")
 			},
-			Self::Assign { name, value, ty } => {
-				write!(f, "Assignment: {}: {} = {}", name.to_string().blue(), ty, value)
-			},
+			Self::Assign { name, value, ty } => 
+				write!(f, "{} {name}: {} = {value};",
+					"let".yellow().dimmed(),
+					ty.to_string().blue()),
 			Self::Ret(expr) => match expr {
-				Some(expr) => write!(f, "Ret: {expr}"),
-				None => write!(f, "Ret"),
+				Some(expr) => write!(f, "ret {expr};"),
+				None => write!(f, "ret;"),
 			},
 			Self::FuncCall { name, args } => {
-				write!(f, "FuncCall: {}(", name.to_string().blue())?;
+				write!(f, "{}(", format!("${name}").red())?;
 				for (i, arg) in args.iter().enumerate() {
 					write!(f, "{arg}")?;
-					if i != args.len() - 1 {
-						write!(f, ", ")?;
-					}
+					if i != args.len() - 1 { write!(f, ", ")?; }
 				}
 				write!(f, ")")
 			},
-			Self::StrLit(s)  => write!(f, "StrLit: {}", format!("{s:?}").green()),
-			Self::UIntLit(i) => write!(f, "UIntLit: {}", i.to_string().green()),
+			Self::StrLit(s)  => write!(f, "{}", format!("{s:?}").green()),
+			Self::UIntLit(i) => write!(f, "{}", i.to_string().cyan()),
 		}
 	}
 }
@@ -130,10 +100,23 @@ impl Display for Type<'_> {
 			Self::Never  => String::from("never"),
 			Self::Opt(i) => format!("opt {i}"),
 			Self::Ptr(i) => format!("*{i}"),
-			Self::Arr(i) => format!("[{i}]"),
+			Self::Arr(i, Some(s)) => format!("[{i}:{s}]"),
+			Self::Arr(i, None)    => format!("[{i}]"),
 			Self::Mut(i) => format!("mut {i}"),
+			Self::Fn(args, ret) => {
+				write!(f, "fn(")?;
+				for (i, arg) in args.iter().enumerate() {
+					write!(f, "{arg}")?;
+					if i != args.len() - 1 {
+						write!(f, ", ")?;
+					}
+				}
+				write!(f, ")")?;
+				if let Some(ret) = ret { write!(f, " {ret}")?; }
+				return Ok(());
+			},
 			Self::Ident(name) => String::from(*name),
-		}.red())
+		}.purple())
 	}
 }
 

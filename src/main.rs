@@ -6,6 +6,8 @@
 	clippy::cognitive_complexity,clippy::option_if_let_else,clippy::option_map_unit_fn,
 	clippy::similar_names)]
 
+#![feature(if_let_guard)]
+
 use std::sync::atomic::Ordering;
 
 use colored::Colorize;
@@ -13,6 +15,7 @@ use colored::Colorize;
 mod args;
 mod lexer;
 mod parser;
+mod analyzer;
 mod codegen;
 mod report;
 mod util;
@@ -20,10 +23,7 @@ mod span;
 
 fn main() {
 	let args = args::Args::parse(std::env::args().skip(1));
-
-	if args.debug {
-		eprintln!("{args:#?}");
-	}
+	if args.debug { eprintln!("{args:#?}"); }
 
 	let handler = report::LogHandler::new();
 
@@ -46,18 +46,27 @@ fn main() {
 	}
 
 
-	if args.debug { eprintln!("\n{}", "CODEGEN".bold()); }
-	let code = codegen::Gen::codegen(args.file, ast, &handler);
-	if args.debug { eprintln!("{code}"); }
+	if args.debug { eprintln!("\n{}", "ANALYSIS".bold()); }
+	let hir = analyzer::Analyzer::analyze(ast, args.file, &handler);
+	if args.debug { hir.iter().for_each(|n| eprintln!("{n:#}")); }
 
 	if report::ERR_COUNT.load(Ordering::Relaxed) > 0 {
 		std::process::exit(1);
 	}
 
-	match args.output.is_empty() {
-		true => println!("{code}"),
-		false => std::fs::write(args.output, code.to_string()).unwrap(),
-	}
+
+	// if args.debug { eprintln!("\n{}", "CODEGEN".bold()); }
+	// let code = codegen::Gen::codegen(args.file, ast, &handler);
+	// if args.debug { eprintln!("{code}"); }
+	//
+	// if report::ERR_COUNT.load(Ordering::Relaxed) > 0 {
+	// 	std::process::exit(1);
+	// }
+
+	// match args.output.is_empty() {
+	// 	true => println!("{code}"),
+	// 	false => std::fs::write(args.output, code.to_string()).unwrap(),
+	// }
 
 	handler.terminate();
 }

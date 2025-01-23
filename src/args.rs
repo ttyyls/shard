@@ -31,7 +31,7 @@ impl Args {
 			level:        2, // warn
 
 			file:         "main.shd",
-			output:       "main.asm",
+			output:       "",
 			verbs:        Vec::new(),
 		}
 	}
