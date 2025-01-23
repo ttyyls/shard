@@ -352,22 +352,22 @@ impl<'src> Parser<'src> {
 				Type::Arr(Box::new(ty), None).span(token.span.extend(&self.current().span))
 			},
 			TokenKind::Identifier => match token.text {
-				n if let Some(n) = n.strip_prefix('u') => Type::U(n.parse()
+				n if n.starts_with('u') => Type::U(n[1..].parse()
 					.map_err(|_| ReportKind::InvalidNumber
 						.title("Invalid integer in primitive type")
 						.label("try 'u8'")
 						.span(token.span))?),
-				n if let Some(n) = n.strip_prefix('i') => Type::I(n.parse()
+				n if n.starts_with('i') => Type::I(n[1..].parse()
 					.map_err(|_| ReportKind::InvalidNumber
 						.title("Invalid integer in primitive type")
 						.label("try 'i8'")
 						.span(token.span))?),
-				n if let Some(n) = n.strip_prefix('b') => Type::B(n.parse()
+				n if n.starts_with('b') => Type::B(n[1..].parse()
 					.map_err(|_| ReportKind::InvalidNumber
 						.title("Invalid integer in primitive type")
 						.label("try 'b8'")
 						.span(token.span))?),
-				n if let Some(n) = n.strip_prefix('f') => Type::F(n.parse()
+				n if n.starts_with('f') => Type::F(n[1..].parse()
 					.map_err(|_| ReportKind::InvalidNumber
 						.title("Invalid integer in primitive type")
 						.label("try 'f8'")

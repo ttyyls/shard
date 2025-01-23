@@ -6,8 +6,6 @@
 	clippy::cognitive_complexity,clippy::option_if_let_else,clippy::option_map_unit_fn,
 	clippy::similar_names)]
 
-#![feature(if_let_guard)]
-
 use std::sync::atomic::Ordering;
 
 use colored::Colorize;
