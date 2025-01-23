@@ -4,8 +4,8 @@ run-name: "Checks #${{ github.event.number }}"
 on:
 	pull_request:
 
-		env:
-			CARGO_TERM_COLOR: always
+env:
+	CARGO_TERM_COLOR: always
 
 jobs:
 	build:
@@ -13,7 +13,7 @@ jobs:
 		runs-on: ubuntu-latest
 		steps:
 			- uses: actions/checkout@v4
-			- run: rustup update nightly && rustup default nightly
+			- run: rustup update
 			- run: cargo check 
 
 	clippy:
@@ -21,5 +21,5 @@ jobs:
 		runs-on: ubuntu-latest
 		steps:
 			- uses: actions/checkout@v4
-			- run: rustup update nightly && rustup default nightly && rustup component add clippy
+			- run: rustup update && rustup component add clippy
 			- run: cargo clippy

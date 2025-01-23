@@ -97,8 +97,6 @@ impl Display for Type<'_> {
 			Self::I(i)   => format!("i{i}"),
 			Self::B(i)   => format!("b{i}"),
 			Self::F(i)   => format!("f{i}"),
-			Self::Usize  => String::from("usize"),
-			Self::Isize  => String::from("isize"),
 			Self::Void   => String::from("void"),
 			Self::Never  => String::from("never"),
 			Self::Isize  => String::from("isize"),
