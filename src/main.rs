@@ -45,8 +45,11 @@ fn main() {
 
 
 	if args.debug { eprintln!("\n{}", "ANALYSIS".bold()); }
-	let hir = analyzer::Analyzer::analyze(ast, args.file, &handler);
-	if args.debug { hir.iter().for_each(|n| eprintln!("{n:#}")); }
+	let (hir, sym) = analyzer::Analyzer::analyze(ast, args.file, &handler);
+	if args.debug {
+		sym.iter().map(|(k,v)| (k.0, v)).for_each(|(k,v)| eprintln!("{k}: \"{v}\""));
+		hir.iter().for_each(|n| eprintln!("{n:#}")); 
+	}
 
 	if report::ERR_COUNT.load(Ordering::Relaxed) > 0 {
 		std::process::exit(1);

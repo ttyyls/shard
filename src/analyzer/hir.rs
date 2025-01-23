@@ -1,9 +1,7 @@
 use std::fmt;
+use colored::Colorize;
 
-use crate::span::Sp;
-use crate::parser::ast::Type;
-
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy, Default, Debug, Eq, Hash, PartialEq)]
 pub struct ValId(pub u64);
 impl std::ops::Deref for ValId {
 	type Target = u64;
@@ -11,31 +9,36 @@ impl std::ops::Deref for ValId {
 	{ &self.0 }
 }
 
-pub enum Node<'src> {
+pub enum Node {
 	Func {
 		id:      ValId,
 		export:  bool,
-		args:    Vec<(ValId, Type<'src>)>,
-		ret:     Type<'src>,
-		body:    Vec<Node<'src>>,
+		args:    Vec<(ValId, Type)>,
+		ret:     Type,
+		body:    Vec<Node>,
 	},
 	FuncDecl {
 		id:   ValId,
-		args: Vec<Type<'src>>,
-		ret:  Type<'src>,
+		args: Vec<Type>,
+		ret:  Type,
 	},
 	Assign {
-		name:  ValId,
-		ty:    Type<'src>,
-		value: Var,
+		id:  ValId,
+		ty:  Type,
+		val: Box<Node>,
 	},
-	Ret(Option<Var>, Type<'src>),
+	Global {
+		id:  ValId,
+		ty:  Type,
+		val: Box<Node>, // StrLit | Var::Imm | Var::Glob
+	},
+	Ret(Option<Var>, Type),
 	FuncCall {
-		name: ValId,
-		args: Vec<Var>,
+		id: Var,
+		args: Vec<(Var, Type)>,
 	},
-	StrLit(String, ValId),
-	UIntLit(u64, Type<'src>),
+	StrLit(String),
+	Var(Var),
 }
 
 pub enum Var {
@@ -44,55 +47,108 @@ pub enum Var {
 	Glob(ValId),
 }
 
-impl fmt::Display for Node<'_> {
+#[derive(Clone)]
+pub enum Type {
+	U(u32), I(u32), B(u32), F(u32),
+	Usize, Isize,
+	Void, Never,
+	Ptr(Box<Type>),
+	Arr(Box<Type>, Option<u64>),
+	Mut(Box<Type>),
+	Opt(Box<Type>),
+	Fn(Vec<Type>, Box<Type>),
+	// Ident(,
+}
+
+impl fmt::Display for Node {
 	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
 		match self {
-			// Self::Func { id, export, args, ret, body } => {
-			// 	// writeln!(f, "Func: {}", id)?;
-			// 	// writeln!(f, "   Export: {}", export)?;
-			// 	// writeln!(f, "   Args: [")?;
-			// 	// for (i, (id, typ)) in args.iter().enumerate() {
-			// 	// 	write!(f, "      {}: {}", id, typ)?;
-			// 	// 	if i != args.len() - 1 {
-			// 	// 		writeln!(f, ",")?;
-			// 	// 	}
-			// 	// }
-			// 	// writeln!(f, "]")?;
-			// 	// writeln!(f, "   Ret: {}", ret)?;
-			// 	// writeln!(f, "   Body: [")?;
-			// 	// for (i, node) in body.iter().enumerate() {
-			// 	// 	write!(f, "      {}", node)?;
-			// 	// 	if i != body.len() - 1 {
-			// 	// 		writeln!(f, ",")?;
-			// 	// 	}
-			// 	// }
-			// 	// writeln!(f, "]")
-			// }
-			// Self::FuncDecl { id, args, ret } => {
-			// 	writeln!(f, "FuncDecl: {}", id)?;
-			// 	writeln!(f, "   Args: [")?;
-			// 	for (i, typ) in args.iter().enumerate() {
-			// 		write!(f, "      {}", typ)?;
-			// 		if i != args.len() - 1 {
-			// 			writeln!(f, ",")?;
-			// 		}
-			// 	}
-			// 	writeln!(f, "]")?;
-			// 	writeln!(f, "   Ret: {}", ret)
-			// }
-			// Self::Assign { name, ty, value } => {
-			// 	writeln!(f, "Assign: {} {} = {}", name, ty, value)
-			// }
-			// Self::Ret(value, ty) => {
-			// 	writeln!(f, "Ret: {} {}", value.as_ref().map_or("".to_string(), |v| v.to_string()), ty)
-			// }
-			// Self::FuncCall { name, args } => {
-			// 	writeln!(f, "FuncCall: {}({})", name, args.iter().map(|a| a.to_string()).collect::<Vec<String>>().join(", "))
-			// }
-			// Self::StrLit(s, id) => {
-			// 	writeln!(f, "StrLit: {} {}", s, id)
-			// }
-			_ => todo!(),
+			Self::Func { id, export, args, ret, body } => {
+				if *export { write!(f, "{} ", "export".yellow().dimmed())?; }
+
+				write!(f, "{} {}(", "fn".yellow().dimmed(), **id)?;
+
+				for (i, (id, ty)) in args.iter().enumerate() {
+					if i != 0 { write!(f, ", ")?; }
+					write!(f, "%{}: {ty}", **id)?;
+				}
+
+				write!(f, ") {ret}")?;
+
+				if body.is_empty() {
+					writeln!(f, ";")?;
+					return Ok(());
+				}
+
+				write!(f, " {{\n")?;
+				for node in body {
+					writeln!(f, "   {node};")?;
+				}
+				write!(f, "}}")
+			},
+			Self::FuncDecl { id, args, ret } => {
+				write!(f, "{} {}(", "fn".yellow().dimmed(), **id)?;
+
+				for (i, ty) in args.iter().enumerate() {
+					if i != 0 { write!(f, ", ")?; }
+					write!(f, "{ty}")?;
+				}
+
+				write!(f, ") {ret}")
+			},
+			Self::Assign { id, ty, val } => write!(f, "%{}: {ty} = {val}", **id),
+			Self::Global { id, ty, val } => write!(f, "@{}: {ty} = {val}", **id),
+			Self::Ret(Some(v), ty) => write!(f, "ret {v}: {ty}"),
+			Self::Ret(None, ty) => write!(f, "ret {ty}"),
+			Self::FuncCall { id, args } => {
+				write!(f, "{id}(")?;
+				for (i, (v, ty)) in args.iter().enumerate() {
+					if i != 0 { write!(f, ", ")?; }
+					write!(f, "{v}: {ty}")?;
+				}
+				write!(f, ")")
+			},
+			Self::StrLit(s) => write!(f, "{}", format!("{s:?}").green()),
+			Self::Var(v)    => write!(f, "{}", v.to_string().cyan()),
+		}
+	}
+}
+
+impl fmt::Display for Type {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		write!(f, "{}", match self {
+			Self::U(n)    => format!("u{n}"),
+			Self::I(n)    => format!("i{n}"),
+			Self::B(n)    => format!("b{n}"),
+			Self::F(n)    => format!("f{n}"),
+			Self::Usize   => String::from("usize"),
+			Self::Isize   => String::from("isize"),
+			Self::Void    => String::from("void"),
+			Self::Never   => String::from("never"),
+			Self::Ptr(ty) => format!("*{ty}"),
+			Self::Arr(ty, None) => format!("[{ty}]"),
+			Self::Arr(ty, Some(n)) => format!("[{ty}; {n}]"),
+			Self::Mut(ty) => format!("mut {ty}"),
+			Self::Opt(ty) => format!("opt {ty}"),
+			Self::Fn(args, ret) => {
+				write!(f, "{}(", "fn".yellow().dimmed())?;
+				for (i, ty) in args.iter().enumerate() {
+					if i != 0 { write!(f, ", ")?; }
+					write!(f, "{ty}")?;
+				}
+				write!(f, ") {ret}")?;
+				return Ok(());
+			},
+		}.purple())
+	}
+}
+
+impl fmt::Display for Var {
+	fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+		match self {
+			Self::Imm(v)    => write!(f, "{v}"),
+			Self::Local(id) => write!(f, "%{}", **id),
+			Self::Glob(id)  => write!(f, "@{}", **id),
 		}
 	}
 }

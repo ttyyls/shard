@@ -38,7 +38,7 @@ pub struct Function {
 	pub name: String,
 	pub attr: Vec<FuncAttr>,
 	pub args: Vec<(Type, String)>,
-	pub ret:  Option<Type>,
+	pub ret:  Type,
 	pub body: Vec<Instr>,
 }
 
@@ -46,7 +46,7 @@ pub struct FuncDecl {
 	pub name: String,
 	pub attr: Vec<FuncAttr>,
 	pub args: Vec<Type>,
-	pub ret:  Option<Type>,
+	pub ret:  Type,
 }
 
 
@@ -66,7 +66,7 @@ pub struct TypedVal(pub Type, pub ValKind, pub String);
 pub enum Type {
 	Int(u32),
 	F16, F32, F64, F128,
-	Ptr,
+	Ptr, Void,
 	Array(usize, Box<Type>),
 	// TODO: Vector, Struct, Function
 }
@@ -115,9 +115,7 @@ impl Display for DataDef {
 
 impl Display for Function {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		write!(f, "define {} @{}(",
-			self.ret.as_ref().map_or(String::new(), ToString::to_string),
-			self.name)?;
+		write!(f, "define {} @{}(", self.ret, self.name)?;
 
 		for (i, arg) in self.args.iter().enumerate() {
 			write!(f, "{} %{}", arg.0, arg.1)?;
@@ -135,9 +133,7 @@ impl Display for Function {
 
 impl Display for FuncDecl {
 	fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-		write!(f, "declare {} @{}(", 
-			self.ret.as_ref().map_or(String::new(), ToString::to_string),
-			self.name)?;
+		write!(f, "declare {} @{}(", self.ret, self.name)?;
 
 		for (i, arg) in self.args.iter().enumerate() {
 			write!(f, "{arg}")?;
@@ -210,6 +206,7 @@ impl Display for Type {
 			Self::F64         => write!(f, "double"),
 			Self::F128        => write!(f, "fp128"),
 			Self::Ptr         => write!(f, "ptr"),
+			Self::Void        => write!(f, "void"),
 			Self::Array(n, t) => write!(f, "[{n} x {t}]"),
 		}
 	}

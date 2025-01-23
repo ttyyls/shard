@@ -34,6 +34,7 @@ pub enum Attrs {
 #[derive(Clone)]
 pub enum Type<'src> {
 	U(u32), I(u32), B(u32), F(u32),
+	Usize, Isize,
 	Void, Never,
 	Opt(Box<Sp<Type<'src>>>),
 	Ptr(Box<Sp<Type<'src>>>),
@@ -65,7 +66,7 @@ impl Display for Node<'_> {
 
 				writeln!(f, " {{")?;
 				body.iter().try_for_each(|s| writeln!(f, "   {s}"));
-				writeln!(f, "}}")
+				write!(f, "}}")
 			},
 			Self::Assign { name, value, ty } => 
 				write!(f, "{} {name}: {} = {value};",
@@ -96,6 +97,8 @@ impl Display for Type<'_> {
 			Self::I(i)   => format!("i{i}"),
 			Self::B(i)   => format!("b{i}"),
 			Self::F(i)   => format!("f{i}"),
+			Self::Usize  => String::from("usize"),
+			Self::Isize  => String::from("isize"),
 			Self::Void   => String::from("void"),
 			Self::Never  => String::from("never"),
 			Self::Opt(i) => format!("opt {i}"),
@@ -104,7 +107,7 @@ impl Display for Type<'_> {
 			Self::Arr(i, None)    => format!("[{i}]"),
 			Self::Mut(i) => format!("mut {i}"),
 			Self::Fn(args, ret) => {
-				write!(f, "fn(")?;
+				write!(f, "{}(", "fn".yellow().dimmed())?;
 				for (i, arg) in args.iter().enumerate() {
 					write!(f, "{arg}")?;
 					if i != args.len() - 1 {
